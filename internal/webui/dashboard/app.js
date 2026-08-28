@@ -11,6 +11,15 @@ async function init() {
   el("back").addEventListener("click", showOverview);
   el("new-project").addEventListener("click", toggleNewForm);
   await loadProjects();
+  // Live refresh: while the overview is showing, re-poll so a project's stage
+  // reflects a finished step or an external change (proxy gen, an edit
+  // elsewhere) without a manual reload. Only the overview polls — the detail
+  // view holds editors/forms we mustn't clobber mid-interaction.
+  setInterval(() => {
+    if (!el("overview").hidden && !el("newform-container").firstChild) {
+      loadProjects(true);
+    }
+  }, 2000);
 }
 
 // Cache of external drives (label + path) for the pickers.
@@ -71,12 +80,12 @@ async function toggleNewForm() {
   el("newform-container").appendChild(form);
 }
 
-async function loadProjects() {
+async function loadProjects(silent) {
   let projects;
   try {
     projects = await (await fetch("/api/projects")).json();
   } catch (e) {
-    return toast("failed to load projects");
+    return silent ? undefined : toast("failed to load projects");
   }
   const cards = el("cards");
   cards.innerHTML = "";
