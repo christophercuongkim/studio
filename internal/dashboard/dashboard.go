@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"slices"
 
 	"github.com/christophercuongkim/studio/internal/manifest"
 	"github.com/christophercuongkim/studio/internal/pipeline"
@@ -29,9 +30,12 @@ func New(roots []string) *Server {
 // Handler returns the HTTP routes (localhost only — the CLI binds 127.0.0.1).
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/drives", s.handleDrives)
 	mux.HandleFunc("GET /api/projects", s.handleList)
+	mux.HandleFunc("POST /api/projects", s.handleCreate)
 	mux.HandleFunc("GET /api/projects/{id}", s.handleDetail)
 	mux.HandleFunc("POST /api/projects/{id}/run/{step}", s.handleRun)
+	mux.HandleFunc("POST /api/projects/{id}/ingest", s.handleIngest)
 	mux.Handle("GET /seakim/", http.StripPrefix("/seakim/", http.FileServer(http.FS(webui.SeakimFS()))))
 	mux.Handle("GET /", http.FileServer(http.FS(webui.DashboardFS())))
 	return mux
@@ -122,12 +126,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 // known reports whether dir is one of the discovered projects (guards the
 // opaque id against pointing anywhere on disk).
 func (s *Server) known(dir string) bool {
-	for _, p := range pipeline.FindProjects(s.roots) {
-		if p == dir {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(pipeline.FindProjects(s.roots), dir)
 }
 
 func encodeID(dir string) string {

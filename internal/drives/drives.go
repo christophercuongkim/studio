@@ -19,8 +19,8 @@ import (
 
 // Drive is one mounted external volume.
 type Drive struct {
-	Label string // the volume name (the mount directory's name)
-	Path  string // the mount point
+	Label string `json:"label"` // the volume name (the mount directory's name)
+	Path  string `json:"path"`  // the mount point
 }
 
 // External returns the currently-mounted external volumes, sorted by label.

@@ -20,6 +20,7 @@ import (
 	"github.com/christophercuongkim/studio/internal/archive"
 	"github.com/christophercuongkim/studio/internal/chapters"
 	"github.com/christophercuongkim/studio/internal/fsutil"
+	"github.com/christophercuongkim/studio/internal/ingest"
 	"github.com/christophercuongkim/studio/internal/kdenlive"
 	"github.com/christophercuongkim/studio/internal/manifest"
 	"github.com/christophercuongkim/studio/internal/qc"
@@ -41,6 +42,38 @@ func (r *Result) add(format string, args ...any) {
 
 // Text joins the result lines.
 func (r *Result) Text() string { return strings.Join(r.Lines, "\n") }
+
+// Ingest imports a card/dump into a project. copy leaves the source intact
+// (defaulted on for removable cards by the caller). It streams nothing here —
+// the caller emits the returned lines — but a Ctrl-C-style interruption is
+// reported as a normal line, not an error.
+func Ingest(projectDir, source, camCode string, copy bool) (*Result, error) {
+	sum, err := ingest.Run(context.Background(), ingest.Options{
+		DumpDir:    source,
+		ProjectDir: projectDir,
+		CamCode:    camCode,
+		Copy:       copy,
+	})
+	r := &Result{}
+	if sum != nil {
+		r.add("ingested %d clip(s): %d camera proxies adopted, %d generated, %d failed",
+			sum.NewClips, sum.AdoptedProxies, sum.GeneratedProxies, sum.FailedProxies)
+		if sum.SkippedExisting > 0 {
+			r.add("  skipped %d already-ingested clip(s)", sum.SkippedExisting)
+		}
+		for _, u := range sum.UnmatchedSidecars {
+			r.add("  unmatched sidecar: %s", filepath.Base(u))
+		}
+		for _, p := range sum.ProbeFailures {
+			r.add("  probe failed (left in dump): %s", p)
+		}
+	}
+	if errors.Is(err, ingest.ErrInterrupted) {
+		r.add("interrupted — re-run with append to finish")
+		return r, nil
+	}
+	return r, err
+}
 
 // Apply renames kept clips (or previews with dryRun).
 func Apply(dir string, dryRun bool) (*Result, error) {
