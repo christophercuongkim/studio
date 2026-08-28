@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/christophercuongkim/studio/internal/manifest"
 	"github.com/christophercuongkim/studio/internal/videoyaml"
@@ -143,5 +144,117 @@ func TestIndexServed(t *testing.T) {
 	b, _ := io.ReadAll(res.Body)
 	if res.StatusCode != 200 || !strings.Contains(string(b), "studio — dashboard") {
 		t.Errorf("index not served (status %d)", res.StatusCode)
+	}
+}
+
+func writeF(t *testing.T, dir, rel, content string) {
+	t.Helper()
+	p := filepath.Join(dir, rel)
+	os.MkdirAll(filepath.Dir(p), 0o755)
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// projectReadyToApply writes a project with one kept, named, not-yet-applied
+// clip (plus its files on disk) — so run/apply has something to do.
+func projectReadyToApply(t *testing.T, root string) string {
+	t.Helper()
+	dir := filepath.Join(root, "2026-08-01_x")
+	os.MkdirAll(dir, 0o755)
+	writeF(t, dir, "originals/a.MP4", "orig")
+	writeF(t, dir, "proxy/a.mp4", "proxy")
+	vy := videoyaml.Default("X", "27", "unlisted")
+	videoyaml.Save(dir, &vy)
+	created := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	man := &manifest.Manifest{
+		SchemaVersion: manifest.SchemaVersion,
+		Shoot:         manifest.Shoot{Root: dir, Title: "X", CamCode: "DJI", CreatedAt: created},
+		Clips: []manifest.Clip{{
+			ID: "c-001", Seq: 1, Stem: "a",
+			Files:     manifest.Files{Original: "originals/a.MP4", Proxy: "proxy/a.mp4"},
+			Media:     manifest.Media{CreatedAt: created, VCodec: "hevc"},
+			ProxyInfo: manifest.ProxyInfo{Source: manifest.ProxyGenerated},
+			Review:    manifest.Review{Status: manifest.StatusKept, Desc: "keeper", Rating: 5},
+		}},
+	}
+	manifest.Save(dir, man)
+	return dir
+}
+
+func firstID(t *testing.T, ts *httptest.Server) string {
+	t.Helper()
+	res, _ := http.Get(ts.URL + "/api/projects")
+	var list []struct {
+		ID string `json:"id"`
+	}
+	json.NewDecoder(res.Body).Decode(&list)
+	if len(list) == 0 {
+		t.Fatal("no projects")
+	}
+	return list[0].ID
+}
+
+func TestRunApplyAdvancesState(t *testing.T) {
+	root := t.TempDir()
+	projectReadyToApply(t, root)
+	ts := newTS(t, root)
+	id := firstID(t, ts)
+
+	res, err := http.Post(ts.URL+"/api/projects/"+id+"/run/apply", "text/plain", nil)
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("run apply: %v status %v", err, res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "applied") || !strings.Contains(string(body), "done") {
+		t.Errorf("apply output unexpected:\n%s", body)
+	}
+
+	// The clip's original was renamed → next advances past apply.
+	res2, _ := http.Get(ts.URL + "/api/projects/" + id)
+	var d struct {
+		Next string `json:"next"`
+	}
+	json.NewDecoder(res2.Body).Decode(&d)
+	if d.Next != "scaffold" {
+		t.Errorf("after apply, next = %q, want scaffold", d.Next)
+	}
+}
+
+func TestRunApplyDryRunChangesNothing(t *testing.T) {
+	root := t.TempDir()
+	projectReadyToApply(t, root)
+	ts := newTS(t, root)
+	id := firstID(t, ts)
+
+	res, _ := http.Post(ts.URL+"/api/projects/"+id+"/run/apply?dry=1", "text/plain", nil)
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "→") { // the dry-run table uses arrows
+		t.Errorf("dry-run should show the rename table:\n%s", body)
+	}
+	// Still at apply (nothing changed).
+	res2, _ := http.Get(ts.URL + "/api/projects/" + id)
+	var d struct {
+		Next string `json:"next"`
+	}
+	json.NewDecoder(res2.Body).Decode(&d)
+	if d.Next != "apply" {
+		t.Errorf("dry-run advanced the state to %q", d.Next)
+	}
+}
+
+func TestRunGuards(t *testing.T) {
+	root := t.TempDir()
+	projectReadyToApply(t, root)
+	ts := newTS(t, root)
+	id := firstID(t, ts)
+
+	// A non-runnable step → 400.
+	if res, _ := http.Post(ts.URL+"/api/projects/"+id+"/run/ingest", "text/plain", nil); res.StatusCode != 400 {
+		t.Errorf("run/ingest status = %d, want 400", res.StatusCode)
+	}
+	// Unknown project → 404.
+	if res, _ := http.Post(ts.URL+"/api/projects/"+encodeID("/etc")+"/run/apply", "text/plain", nil); res.StatusCode != 404 {
+		t.Errorf("unknown project run status = %d, want 404", res.StatusCode)
 	}
 }
