@@ -212,6 +212,22 @@ assert counts/values, not bytes.
 
 ---
 
+## CHR-11 — new + video.yaml
+
+**Initialize slices you want to serialize as `[]`, not leave nil.**
+_Why:_ A nil `[]string` marshals to `null` in YAML/JSON; `tags:` and
+`playlistIds:` reading as `null` is ambiguous and annoying to hand-edit.
+_How to apply:_ `Default()` sets them to `[]string{}` so a fresh video.yaml has
+real empty lists.
+
+**Inject the clock (`now time.Time`) into anything that date-defaults.**
+_Why:_ `studio new` derives the folder date from "today"; a test can't assert a
+stable path if the code calls `time.Now()` internally.
+_How to apply:_ Business logic takes `now time.Time`; only the CLI passes
+`time.Now()`. Same pattern already used in ingest/apply.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
