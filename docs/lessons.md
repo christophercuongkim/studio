@@ -61,6 +61,53 @@ disk). `Load` runs both; `LoadFile` runs only the former.
 
 ---
 
+## CHR-7 — ingest
+
+**`os.Rename` moving files out of the dump means `--append` on the same dump is
+a no-op — dedupe is by content, for `--copy`/overlapping dumps.**
+_Why:_ After a move-mode ingest the originals are gone from the dump, so
+re-running finds nothing; the checksum dedupe exists for `--copy` runs or a
+partially-overlapping second card.
+_How to apply:_ Test append idempotency in `--copy` mode. Don't expect
+move-mode re-runs to "skip existing" — there's nothing left to skip.
+
+**ffmpeg is deterministic: identical settings produce byte-identical output and
+therefore identical checksums.**
+_Why:_ Two fixture clips generated with the same command hashed the same and
+the xxh64 dedupe (correctly) treated them as one clip.
+_How to apply:_ When a test needs distinct files, vary a real input (duration,
+tone, size) — not just the filename.
+
+**Go's `flag` package stops at the first non-flag argument.**
+_Why:_ `studio ingest <dir> --project x` silently dropped `--project` because
+`<dir>` ended flag parsing. Only caught by running the built binary, not by
+tests calling the pipeline directly.
+_How to apply:_ Use the resume-parse helper (`parseFlags`): parse, capture the
+positional, parse the rest, repeat. Applies to every subcommand with both flags
+and positionals.
+
+**Don't hardcode a real command name as the "unbuilt" case in a dispatcher
+test.**
+_Why:_ The exit-code test used `ingest` as an example of an unimplemented
+command; building ingest flipped its exit code and broke the test.
+_How to apply:_ Inject a throwaway `*Command` with a nil `Run` into the registry
+in the test instead of naming a real one.
+
+**zsh does not word-split unquoted parameters (bash does).**
+_Why:_ A shell test helper passed `-tag:v hvc1` as one `$5`; zsh kept it as a
+single mangled ffmpeg token, so the fixture silently wasn't created and a group
+lost its original.
+_How to apply:_ In zsh, pass multi-token args as separate positionals or use an
+array; when a fixture "disappears", list the dir before the step, don't assume.
+
+**Bounded parallelism doesn't need a dependency.**
+_Why:_ `golang.org/x/sync` latest raised the module's Go floor; errgroup was
+only "optional" in the plan.
+_How to apply:_ A `chan struct{}` semaphore + `sync.WaitGroup`, with each
+goroutine writing only its own slice index, covers fan-out without x/sync.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
