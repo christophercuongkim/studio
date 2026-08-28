@@ -501,6 +501,25 @@ progress can come later.
 
 ---
 
+## CHR-24 — dashboard slice 3 (new + ingest)
+
+**A nil Go slice marshals to JSON `null`; return `[]` when a client will `.map`
+over it.**
+_Why:_ `/api/drives` returned `null` with nothing mounted, which would throw on
+`drives.map(...)` in the New-project/ingest forms — the common case (no card in).
+_How to apply:_ Coerce nil to an empty slice server-side (`if ds == nil { ds =
+[]T{} }`) and guard client-side (`(await res.json()) || []`). Caught by a live
+run with no drives connected, not by the happy-path test — add a test that
+asserts the body starts with `[`.
+
+**Isolate config in endpoint tests that call `config.Load`.**
+_Why:_ The create endpoint reads the real `~/.config/studio` (projectsRoot =
+`~/Videos`), so a naive test would create projects in the user's real library.
+_How to apply:_ `t.Setenv("XDG_CONFIG_HOME", tmp)` with a throwaway
+`config.yaml` pointing projectsRoot at a temp dir.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
