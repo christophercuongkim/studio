@@ -4,15 +4,20 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
+	"text/tabwriter"
 
-	"github.com/christophercuongkim/studio/internal/manifest"
+	"github.com/christophercuongkim/studio/internal/config"
+	"github.com/christophercuongkim/studio/internal/pipeline"
 )
 
 func runStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "Usage: studio status <project>")
-		fmt.Fprintln(fs.Output(), "\nShow review and apply counts for a project.")
+		fmt.Fprintln(fs.Output(), "Usage: studio status [project]")
+		fmt.Fprintln(fs.Output(), "\nShow a project's pipeline stage and what's next. With no argument,")
+		fmt.Fprintln(fs.Output(), "summarize every project under searchRoots.")
 	}
 	rest, err := parseFlags(fs, args)
 	if err != nil {
@@ -21,35 +26,58 @@ func runStatus(args []string) error {
 		}
 		return err
 	}
-	if len(rest) != 1 {
-		return fmt.Errorf("expected exactly one <project> argument, got %d", len(rest))
-	}
 
-	man, err := manifest.Load(rest[0])
+	switch len(rest) {
+	case 1:
+		printProject(pipeline.Detect(rest[0]))
+		return nil
+	case 0:
+		return statusOverview()
+	default:
+		return fmt.Errorf("expected at most one [project] argument, got %d", len(rest))
+	}
+}
+
+// printProject prints one project's pipeline checklist and next step.
+func printProject(s *pipeline.State) {
+	fmt.Println(s.Title)
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	for _, step := range s.Steps {
+		box := "[ ]"
+		if step.Done {
+			box = "[x]"
+		}
+		fmt.Fprintf(tw, "  %s %s\t%s\n", box, step.Name, step.Detail)
+	}
+	tw.Flush()
+	if s.Next == "" {
+		fmt.Println("  ✓ complete")
+	} else {
+		fmt.Printf("  next: %s\n", s.Next)
+	}
+}
+
+// statusOverview lists every project with its current stage.
+func statusOverview() error {
+	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-
-	var pending, kept, rejected, applied int
-	for _, c := range man.Clips {
-		switch c.Review.Status {
-		case manifest.StatusKept:
-			kept++
-		case manifest.StatusRejected:
-			rejected++
-		default:
-			pending++
-		}
-		if c.Applied.Done {
-			applied++
-		}
+	dirs := pipeline.FindProjects(cfg.SearchRoots)
+	if len(dirs) == 0 {
+		fmt.Println("no projects found under searchRoots")
+		return nil
 	}
-
-	fmt.Printf("%s — %d clip(s)\n", man.Shoot.Title, len(man.Clips))
-	fmt.Printf("  pending %d · kept %d · rejected %d\n", pending, kept, rejected)
-	fmt.Printf("  applied %d/%d kept\n", applied, kept)
-	if man.ArchivedAt != nil {
-		fmt.Printf("  archived %s → %s\n", man.ArchivedAt.Format("2006-01-02"), man.ArchivePath)
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "project\tstage")
+	for _, dir := range dirs {
+		s := pipeline.Detect(dir)
+		stage := "→ " + s.Next
+		if s.Next == "" {
+			stage = "✓ complete"
+		}
+		fmt.Fprintf(tw, "%s\t%s\n", filepath.Base(dir), stage)
 	}
+	tw.Flush()
 	return nil
 }
