@@ -15,7 +15,7 @@ var commands = []*Command{
 	{Name: "undo", Usage: "<project>", Summary: "Reverse the most recent apply", Run: runUndo},
 	{Name: "scaffold", Usage: "<project>", Summary: "Generate a Kdenlive project from a template", Run: runScaffold},
 	{Name: "status", Usage: "<project>", Summary: "Show review/apply counts for a project"},
-	{Name: "search", Usage: "<text>", Summary: "Search clips across every ingested shoot"},
+	{Name: "search", Usage: "<text>", Summary: "Search clips across every ingested shoot", Run: runSearch},
 	{Name: "prompt", Usage: "<project>", Summary: "Bullet-script recording prompter"},
 	{Name: "chapters", Usage: "<project>", Summary: "Kdenlive guides → YouTube chapters"},
 	{Name: "qc", Usage: "<project>", Summary: "Pre-upload render checks"},
