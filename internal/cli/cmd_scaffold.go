@@ -4,12 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/christophercuongkim/studio/internal/config"
-	"github.com/christophercuongkim/studio/internal/kdenlive"
-	"github.com/christophercuongkim/studio/internal/manifest"
+	"github.com/christophercuongkim/studio/internal/steps"
 )
 
 func runScaffold(args []string) error {
@@ -32,12 +29,6 @@ func runScaffold(args []string) error {
 	if len(rest) != 1 {
 		return fmt.Errorf("expected exactly one <project> argument, got %d", len(rest))
 	}
-	projectDir := rest[0]
-
-	man, err := manifest.Load(projectDir)
-	if err != nil {
-		return err
-	}
 
 	templatePath := *tmpl
 	if templatePath == "" {
@@ -47,54 +38,11 @@ func runScaffold(args []string) error {
 		}
 		templatePath = cfg.KdenliveTemplate
 	}
-	if templatePath == "" {
-		return errors.New("no Kdenlive template configured; pass --template or set kdenliveTemplate in config")
-	}
 
-	outPath := *out
-	if outPath == "" {
-		title := man.Shoot.Title
-		if title == "" {
-			title = "project"
-		}
-		outPath = filepath.Join(projectDir, title+".kdenlive")
-	}
-	if _, err := os.Stat(outPath); err == nil {
-		return fmt.Errorf("output already exists: %s (scaffold never overwrites)", outPath)
-	}
-
-	// Gather applied, kept clips as bin producers (absolute original paths).
-	absProject, _ := filepath.Abs(projectDir)
-	var clips []kdenlive.ClipRef
-	for _, c := range man.Clips {
-		if c.Review.Status != manifest.StatusKept || !c.Applied.Done {
-			continue
-		}
-		clips = append(clips, kdenlive.ClipRef{
-			Resource:    filepath.Join(absProject, c.Files.Original),
-			DurationSec: c.Media.DurationSec,
-			Rating:      c.Review.Rating,
-		})
-	}
-	if len(clips) == 0 {
-		return errors.New("no applied, kept clips to place; run 'studio apply' first")
-	}
-
-	data, err := os.ReadFile(templatePath)
-	if err != nil {
-		return fmt.Errorf("read template: %w", err)
-	}
-	root, err := kdenlive.Load(data)
+	res, err := steps.Scaffold(rest[0], templatePath, *out)
 	if err != nil {
 		return err
 	}
-	if err := kdenlive.Scaffold(root, clips); err != nil {
-		return err
-	}
-	if err := os.WriteFile(outPath, root.Render(), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", outPath, err)
-	}
-
-	fmt.Printf("scaffolded %s with %d clip(s)\n", outPath, len(clips))
+	fmt.Println(res.Text())
 	return nil
 }
