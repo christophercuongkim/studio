@@ -13,7 +13,6 @@ func TestRunExitCodes(t *testing.T) {
 		{"help word", []string{"help"}, 0},
 		{"version", []string{"--version"}, 0},
 		{"unknown command", []string{"bogus"}, 2},
-		{"declared but unbuilt", []string{"ingest"}, 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -21,6 +20,17 @@ func TestRunExitCodes(t *testing.T) {
 				t.Errorf("Run(%q) = %d, want %d", tt.args, got, tt.want)
 			}
 		})
+	}
+}
+
+// A declared-but-unbuilt command (nil Run) exits 2 with "not implemented yet".
+func TestRunDeclaredButUnbuilt(t *testing.T) {
+	orig := commands
+	t.Cleanup(func() { commands = orig })
+	commands = []*Command{{Name: "later", Summary: "not built"}}
+
+	if got := Run("test", []string{"later"}); got != 2 {
+		t.Errorf("Run(later) = %d, want 2", got)
 	}
 }
 

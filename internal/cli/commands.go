@@ -9,7 +9,7 @@ package cli
 // grows without touching the dispatcher.
 var commands = []*Command{
 	{Name: "new", Usage: "<slug>", Summary: "Create a new project folder and skeletons"},
-	{Name: "ingest", Usage: "<dump-dir> --project <dir>", Summary: "Import a card dump into the project layout"},
+	{Name: "ingest", Usage: "<dump-dir> --project <dir>", Summary: "Import a card dump into the project layout", Run: runIngest},
 	{Name: "serve", Usage: "<project>", Summary: "Review UI: rate, name, keep/reject clips"},
 	{Name: "apply", Usage: "<project>", Summary: "Rename kept clips to their final names"},
 	{Name: "undo", Usage: "<project>", Summary: "Reverse the most recent apply"},
