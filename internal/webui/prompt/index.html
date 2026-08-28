@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>studio — prompter</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="blackout" hidden></div>
+
+  <header id="bar">
+    <div id="progress"><div id="progressfill"></div></div>
+    <div id="stats"><span id="clock">0:00</span> · <span id="sectiontimer">0:00</span> · take <span id="take">1</span></div>
+  </header>
+
+  <main id="stage">
+    <h1 id="section">…</h1>
+    <ul id="bullets"></ul>
+    <div id="next">next: <span id="nextsection"></span></div>
+  </main>
+
+  <!-- Tap zones: left third = back, right third = forward -->
+  <div id="tapback" class="tapzone"></div>
+  <div id="tapfwd" class="tapzone"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

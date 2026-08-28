@@ -9,14 +9,24 @@ import (
 )
 
 //go:embed serve/index.html serve/app.js serve/app.css
+//go:embed prompt/index.html prompt/app.js prompt/app.css
 var files embed.FS
 
 // ServeFS returns the file tree for the `studio serve` review UI, rooted so
 // index.html is served at "/".
 func ServeFS() fs.FS {
-	sub, err := fs.Sub(files, "serve")
+	return sub("serve")
+}
+
+// PromptFS returns the file tree for the `studio prompt` teleprompter UI.
+func PromptFS() fs.FS {
+	return sub("prompt")
+}
+
+func sub(dir string) fs.FS {
+	f, err := fs.Sub(files, dir)
 	if err != nil {
 		panic(err) // embed path is a compile-time constant; can't fail at runtime
 	}
-	return sub
+	return f
 }
