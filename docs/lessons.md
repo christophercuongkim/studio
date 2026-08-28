@@ -373,6 +373,37 @@ failure return an error containing the videoId.
 
 ---
 
+## CHR-18 — archive
+
+**Pruning files means clearing their manifest paths, or the next `Load` fails.**
+_Why:_ archive deletes proxy/, but the manifest still referenced proxy/<stem>.mp4
+— exactly the apply/undo lesson again. Path-validating Load then rejects the
+project post-archive.
+_How to apply:_ On prune, set each clip's Files.Proxy to "" (proxyInfo.source
+stays so a future rebuild knows the clip had one). Surfaced by a test that
+loaded the manifest after archiving.
+
+**Verify twice: source before mutating, copy after rsync.**
+_Why:_ The first hash pass is the bit-rot gate (abort before touching anything);
+the second proves the archive is a faithful copy before pruning the working tree.
+_How to apply:_ Run the same verifyOriginals against the source dir, then against
+the archive dir after rsync.
+
+**`--keep-proxies` is not `--keep-everything`.**
+_Why:_ thumbs/raw is pure extraction scratch, never user media, so it's always
+safe (and right) to prune.
+_How to apply:_ The keep toggle only spares proxy/; thumbs/raw is pruned
+regardless.
+
+**Watch shell `ls` color codes when capturing paths in test harnesses.**
+_Why:_ `$(ls …)` under a color alias embeds ANSI escapes, so a later
+`>> "$path"` silently writes nowhere — a "tamper" step that doesn't tamper, and
+a bit-rot check that looks like it didn't fire.
+_How to apply:_ Corrupt files via a glob in python or `find -print0`, not `ls`;
+when a destructive check "passes" suspiciously, confirm the mutation landed.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
