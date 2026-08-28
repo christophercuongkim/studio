@@ -112,7 +112,7 @@ function projectCard(p) {
 }
 
 // Steps the dashboard can run, and which support a dry-run preview.
-const RUNNABLE = new Set(["apply", "scaffold", "chapters", "qc", "thumbs", "archive"]);
+const RUNNABLE = new Set(["apply", "scaffold", "chapters", "qc", "archive"]);
 const DRYABLE = new Set(["apply", "archive"]);
 
 async function showDetail(id) {
@@ -151,6 +151,10 @@ function actions(d) {
   }
   if (step === "review") {
     wrap.appendChild(button("Open review", () => openReview(d.id), "primary"));
+    return wrap;
+  }
+  if (step === "thumbs") {
+    wrap.appendChild(thumbsPicker(d.id));
     return wrap;
   }
   if (!RUNNABLE.has(step)) {
@@ -220,6 +224,110 @@ async function ingestForm(id) {
     await renderDetail(id); // advances to review once clips land
   });
   return form;
+}
+
+// thumbsPicker builds the extract form + candidate gallery. Extraction streams
+// into the run log; then the candidates render as clickable tiles, and clicking
+// one sets it as the thumbnail (advancing the checklist).
+function thumbsPicker(id) {
+  const wrap = document.createElement("div");
+  wrap.className = "thumbs";
+
+  const form = document.createElement("form");
+  form.className = "form ingest";
+  form.innerHTML = `
+    <label>Sample from
+      <select name="from">
+        <option value="render">Final render</option>
+        <option value="clips">Rating-5 clips</option>
+      </select>
+    </label>
+    <label>Count <input name="count" type="number" min="1" max="24" value="12"></label>
+    <div class="form-actions"><button type="submit" class="btn primary">Extract candidates</button></div>`;
+
+  const gallery = document.createElement("div");
+  gallery.className = "thumb-gallery";
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const log = el("runlog");
+    log.hidden = false;
+    log.textContent = "";
+    form.querySelector("button").disabled = true;
+    try {
+      const res = await fetch(`/api/projects/${id}/thumbs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: form.from.value, count: parseInt(form.count.value, 10) || 12 }),
+      });
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        log.textContent += dec.decode(value, { stream: true });
+        log.scrollTop = log.scrollHeight;
+      }
+    } catch (err) {
+      log.textContent += "\n[connection error]\n";
+    }
+    form.querySelector("button").disabled = false;
+    loadCandidates(id, gallery);
+  });
+
+  wrap.append(form, gallery);
+  loadCandidates(id, gallery); // show any candidates from a previous run
+  return wrap;
+}
+
+async function loadCandidates(id, gallery) {
+  let data;
+  try {
+    data = await (await fetch(`/api/projects/${id}/thumbs/candidates`)).json();
+  } catch (e) {
+    return;
+  }
+  gallery.innerHTML = "";
+  if (!data.candidates.length) return;
+
+  for (const file of data.candidates) {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "thumb-tile" + (file === data.current ? " current" : "");
+    const img = document.createElement("img");
+    img.src = `/media/thumb/${id}/${file}`;
+    img.alt = file;
+    img.loading = "lazy";
+    const cap = document.createElement("span");
+    cap.className = "thumb-cap";
+    cap.textContent = file === data.current ? "✓ selected" : "Use this";
+    tile.append(img, cap);
+    tile.onclick = () => setThumbnail(id, file, gallery);
+    gallery.appendChild(tile);
+  }
+  if (data.contactSheet) {
+    const link = document.createElement("a");
+    link.className = "contact-link";
+    link.href = `/media/thumb/${id}/${data.contactSheet}`;
+    link.target = "_blank";
+    link.textContent = "Open contact sheet";
+    gallery.appendChild(link);
+  }
+}
+
+async function setThumbnail(id, file, gallery) {
+  try {
+    const res = await fetch(`/api/projects/${id}/thumbnail`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file }),
+    });
+    if (!res.ok) return toast(await res.text());
+  } catch (e) {
+    return toast("failed to set thumbnail");
+  }
+  await loadCandidates(id, gallery); // re-mark the current pick
+  renderDetail(id); // thumbs step is now done
 }
 
 function nextNote(step) {
