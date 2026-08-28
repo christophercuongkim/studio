@@ -196,6 +196,39 @@
 .thumb-tile.current .thumb-cap { color: var(--text-primary); }
 .contact-link { display: inline-block; margin-top: var(--space-4); color: var(--text-link); font: var(--type-body); }
 
+.upload { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); align-items: start; }
+.upload-form textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  border: var(--border-hairline) solid var(--border-default);
+  padding: var(--space-3);
+  resize: vertical;
+}
+.upload-side { display: flex; flex-direction: column; gap: var(--space-4); }
+.gate { padding: var(--space-3) var(--space-4); border: var(--border-hairline) solid var(--border-subtle); font: var(--type-label); }
+.gate.ok { color: var(--text-success); background: var(--fill-success-subtle); }
+.gate.bad { color: var(--text-danger); background: var(--fill-danger-subtle); }
+.problems { margin: 0; padding-left: var(--space-5); color: var(--text-danger); font: var(--type-body); }
+.problems:empty { display: none; }
+.payload {
+  margin: 0;
+  max-height: 40vh;
+  overflow: auto;
+  padding: var(--pad-card);
+  background: var(--surface-inset);
+  border: var(--border-hairline) solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+}
+.upload-actions { display: flex; flex-direction: column; gap: var(--space-3); }
+.yt-link { color: var(--text-link); font: var(--type-body); }
+@media (max-width: 720px) { .upload { grid-template-columns: 1fr; } }
+
 .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-6); }
 .panel {
   padding: var(--pad-card);
