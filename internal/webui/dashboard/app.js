@@ -132,6 +132,11 @@ async function showDetail(id) {
   el("detail").hidden = false;
 }
 
+// curDetail holds the loaded project and which step's room is open, so
+// re-renders (after a run, a poll) keep you where you navigated instead of
+// snapping back to the next step.
+let curDetail = null;
+
 // renderDetail (re)draws the top of the detail view (checklist, actions, meta)
 // without wiping the run log, so a step's output stays visible as the checklist
 // advances.
@@ -142,17 +147,46 @@ async function renderDetail(id) {
   } catch (e) {
     return toast("failed to load project");
   }
+  // Preserve the open step across re-renders (same project); default to the
+  // next actionable step. If the remembered step vanished, fall back to next.
+  let step = curDetail && curDetail.d.id === d.id ? curDetail.step : d.next;
+  if (step && !d.steps.some((s) => s.name === step)) step = d.next;
+  curDetail = { d, step };
+  paintDetailTop();
+}
+
+// paintDetailTop rebuilds the checklist + action panel for the open step.
+function paintDetailTop() {
+  const { d, step } = curDetail;
   el("detail-title").textContent = d.title;
   const top = el("detail-top");
   top.innerHTML = "";
-  top.append(checklist(d), actions(d), metaPanels(d));
+  top.append(checklist(d, step), actions(d, step), metaPanels(d));
 }
 
-function actions(d) {
+// selectStep opens a different step's room (e.g. clicking a done step to redo a
+// decision). Re-renders the panel only; the run log is untouched.
+function selectStep(name) {
+  if (!curDetail) return;
+  curDetail.step = name;
+  paintDetailTop();
+}
+
+function actions(d, step) {
   const wrap = document.createElement("div");
   wrap.className = "actions";
-  const step = d.next;
-  if (!step) return wrap; // complete
+  if (!step) return wrap; // nothing selected / complete
+
+  // Orient the user when they've navigated to a step that isn't the next one.
+  const meta = d.steps.find((s) => s.name === step);
+  if (meta && (meta.done || step !== d.next)) {
+    const h = document.createElement("p");
+    h.className = "step-status";
+    h.textContent = meta.done
+      ? `“${step}” is done — redo it below to change your decision.`
+      : `“${step}” — not reached yet; run it once its inputs exist.`;
+    wrap.appendChild(h);
+  }
 
   if (step === "ingest") {
     ingestForm(d.id).then((f) => wrap.appendChild(f));
@@ -180,7 +214,8 @@ function actions(d) {
   if (DRYABLE.has(step)) {
     wrap.appendChild(button(`Preview ${step}`, () => runStep(d.id, step, true)));
   }
-  wrap.appendChild(button(`Run ${step}`, () => {
+  const runLabel = meta && meta.done ? `Re-run ${step}` : `Run ${step}`;
+  wrap.appendChild(button(runLabel, () => {
     if (DRYABLE.has(step) && !confirm(`Run ${step}? This changes files in the project.`)) return;
     runStep(d.id, step, false);
   }, "primary"));
@@ -491,8 +526,11 @@ function debounce(fn, ms) {
 }
 
 function nextNote(step) {
+  if (step === "render") {
+    return "Edit the .kdenlive in Kdenlive and export your final video, then continue with chapters.";
+  }
   const via = { ingest: "studio ingest", review: "studio serve", upload: "studio upload" }[step];
-  return via ? `Next: ${step} — coming to the dashboard soon; for now use \`${via}\`.` : `Next: ${step}`;
+  return via ? `Use \`${via}\` for now (coming to the dashboard).` : step;
 }
 
 function button(label, onclick, kind) {
@@ -553,21 +591,34 @@ function openReview(id) {
 }
 
 function showOverview() {
+  curDetail = null; // next project opens at its own next step, not this one's
   el("detail").hidden = true;
   el("overview").hidden = false;
   loadProjects(); // refresh in case anything changed
 }
 
-function checklist(d) {
+function checklist(d, selected) {
   const ul = document.createElement("ul");
   ul.className = "checklist";
   for (const step of d.steps) {
     const li = document.createElement("li");
-    li.className = (step.done ? "done" : "") + (step.name === d.next ? " next" : "");
+    li.className =
+      (step.done ? "done" : "") +
+      (step.name === d.next ? " next" : "") +
+      (step.name === selected ? " selected" : "");
+    li.tabIndex = 0;
+    li.title = "Open this step" + (step.done ? " to redo it" : "");
     li.innerHTML =
       `<span class="box">${step.done ? "[x]" : "[ ]"}</span>` +
       `<span class="name">${step.name}</span>` +
       `<span class="detail">${step.detail || ""}</span>`;
+    li.onclick = () => selectStep(step.name);
+    li.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        selectStep(step.name);
+      }
+    };
     ul.appendChild(li);
   }
   return ul;

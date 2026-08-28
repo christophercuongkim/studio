@@ -117,14 +117,20 @@
   grid-template-columns: 2.5em 8em 1fr;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: var(--space-3) var(--space-3);
   border-bottom: var(--border-hairline) solid var(--border-subtle);
+  border-left: 3px solid transparent;
+  cursor: pointer;
 }
+.checklist li:hover { background: var(--surface-sunken); }
+.checklist li:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+.checklist li.selected { background: var(--surface-sunken); border-left-color: var(--fill-accent); }
 .checklist .box { color: var(--text-tertiary); font-family: var(--font-mono); white-space: nowrap; }
 .checklist li.done .box { color: var(--text-success); }
 .checklist li.next .name { color: var(--text-accent); font-weight: var(--weight-semibold); }
 .checklist .name { color: var(--text-primary); font: var(--type-body-sm); }
 .checklist .detail { color: var(--text-tertiary); font: var(--type-caption); }
+.step-status { margin: 0 0 var(--space-4); color: var(--text-secondary); font: var(--type-body-sm); }
 
 /* Actions (run/preview buttons) + streamed log */
 .actions { display: flex; gap: var(--space-3); align-items: center; margin-bottom: var(--space-6); }
