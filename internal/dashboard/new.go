@@ -66,16 +66,17 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Source string `json:"source"`
-		Copy   bool   `json:"copy"`
-		Move   bool   `json:"move"`
+		Source      string `json:"source"`
+		Copy        bool   `json:"copy"`
+		Move        bool   `json:"move"`
+		ClearSource bool   `json:"clearSource"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Source == "" {
 		http.Error(w, "a source is required", http.StatusBadRequest)
 		return
 	}
 	cfg, _ := config.Load()
-	copyFiles := req.Copy || (!req.Move && drives.IsRemovable(req.Source))
+	copyFiles := req.Copy || req.ClearSource || (!req.Move && drives.IsRemovable(req.Source))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -90,10 +91,13 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	mode := "moving"
 	if copyFiles {
 		mode = "copying (card stays intact)"
+		if req.ClearSource {
+			mode = "copying, then emptying the card"
+		}
 	}
 	emit(fmt.Sprintf("▶ ingesting from %s — %s …", req.Source, mode))
 
-	res, err := steps.Ingest(dir, req.Source, cfg.CamCode, copyFiles)
+	res, err := steps.Ingest(dir, req.Source, cfg.CamCode, copyFiles, req.ClearSource)
 	if res != nil {
 		for _, l := range res.Lines {
 			emit(l)
