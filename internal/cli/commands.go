@@ -21,5 +21,5 @@ var commands = []*Command{
 	{Name: "qc", Usage: "<project>", Summary: "Pre-upload render checks", Run: runQC},
 	{Name: "thumbs", Usage: "<project>", Summary: "Extract and rank thumbnail candidates", Run: runThumbs},
 	{Name: "upload", Usage: "<project>", Summary: "Upload the render to YouTube", Run: runUpload},
-	{Name: "archive", Usage: "<project>", Summary: "Verify, cold-store, and prune a finished project"},
+	{Name: "archive", Usage: "<project>", Summary: "Verify, cold-store, and prune a finished project", Run: runArchive},
 }
