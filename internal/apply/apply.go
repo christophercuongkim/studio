@@ -64,10 +64,18 @@ func Build(man *manifest.Manifest, projectDir string) (*Plan, error) {
 	var violations []string
 	for i := range man.Clips {
 		c := &man.Clips[i]
-		if c.Review.Status != manifest.StatusKept || c.Applied.Done {
+		if c.Applied.Done {
 			continue
 		}
-		if c.Review.Desc == "" {
+		kept := c.Review.Status == manifest.StatusKept
+		// A rejected clip that was still named gets renamed into not_using/ —
+		// keep the label, just move it out of the way (rejected + no desc is left
+		// untouched, as before).
+		rejectedNamed := c.Review.Status == manifest.StatusRejected && c.Review.Desc != ""
+		if !kept && !rejectedNamed {
+			continue
+		}
+		if kept && c.Review.Desc == "" {
 			violations = append(violations, fmt.Sprintf("clip %s is kept but has an empty desc", c.ID))
 			continue
 		}
@@ -86,6 +94,9 @@ func Build(man *manifest.Manifest, projectDir string) (*Plan, error) {
 		cp := clipPlan{id: c.ID, finalStem: finalStem}
 		add := func(rel string) string {
 			dir := path.Dir(rel)
+			if rejectedNamed {
+				dir = "not_using" // discard pile, flattened; kept clips stay in place
+			}
 			ext := path.Ext(rel)
 			to := path.Join(dir, finalStem+ext)
 			p.Renames = append(p.Renames, rename{Op: "rename", From: rel, To: to, Group: c.ID})
@@ -162,6 +173,10 @@ func Execute(man *manifest.Manifest, projectDir string, p *Plan, now time.Time) 
 		}
 		from := filepath.Join(projectDir, r.From)
 		to := filepath.Join(projectDir, r.To)
+		// Ensure the target dir exists (e.g. not_using/, which doesn't exist yet).
+		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+			return logPath, err
+		}
 		if err := os.Rename(from, to); err != nil {
 			return logPath, fmt.Errorf("rename %s → %s failed: %w\npartial state recorded in %s (run 'studio undo')", r.From, r.To, err, logPath)
 		}
