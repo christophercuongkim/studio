@@ -69,3 +69,21 @@
   --brand-050: oklch(0.96 0.022 320);
   --brand-wash: oklch(0.24 0.045 320);
 }
+
+/* studio — local consumer accent binding (vendor adaptation, see VENDORED.md).
+   studio isn't one of the upstream SeaKim apps, so it binds its own accent to
+   the turf hue by mirroring the bench/fantasy ramp. Re-apply on re-sync. */
+[data-app="studio"] {
+  --hue-brand: var(--hue-turf);
+  --brand-100: oklch(0.91 0.045 145);
+  --brand-200: oklch(0.84 0.075 145);
+  --brand-300: oklch(0.80 0.100 145);
+  --brand-400: oklch(0.72 0.130 145);
+  --brand-500: oklch(0.64 0.140 145);
+  --brand-600: oklch(0.56 0.140 145);
+  --brand-700: oklch(0.46 0.120 145);
+  --brand-800: oklch(0.36 0.095 145);
+  --brand-900: oklch(0.26 0.070 145);
+  --brand-050: oklch(0.96 0.022 145);
+  --brand-wash: oklch(0.24 0.045 145);
+}

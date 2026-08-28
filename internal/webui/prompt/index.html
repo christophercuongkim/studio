@@ -1,9 +1,18 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-app="studio">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>studio — prompter</title>
+  <!-- Prompter defaults to dark (a camera-facing reading device); tokens still
+       drive both themes. Consumers set data-theme themselves. -->
+  <script>
+    (function () {
+      try { document.documentElement.setAttribute("data-theme", localStorage.getItem("studio-theme") || "dark"); }
+      catch (e) { document.documentElement.setAttribute("data-theme", "dark"); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/seakim/styles.css">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -11,7 +20,7 @@
 
   <header id="bar">
     <div id="progress"><div id="progressfill"></div></div>
-    <div id="stats"><span id="clock">0:00</span> · <span id="sectiontimer">0:00</span> · take <span id="take">1</span></div>
+    <div id="stats" class="tnum"><span id="clock">0:00</span> · <span id="sectiontimer">0:00</span> · take <span id="take">1</span></div>
   </header>
 
   <main id="stage">
