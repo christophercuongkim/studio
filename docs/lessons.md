@@ -178,6 +178,40 @@ _How to apply:_ `Stat` the target; if gone, warn and continue rather than error.
 
 ---
 
+## CHR-10 — scaffold (Kdenlive)
+
+**Kdenlive 7.38 uses `<chain>`, not `<producer>`, for A/V clips — but injecting a
+minimal `<producer>` still works.**
+_Why:_ The bin lists clips as `<entry producer="chainN">` referencing `<chain>`
+elements. A `<producer>` with `mlt_service=avformat-novalidate` + `resource` is
+accepted and upgraded to a chain on first save; Kdenlive computes the rest
+(hash, control_uuid) on load.
+_How to apply:_ Inject `<producer>` with resource, mlt_service, kdenlive:id,
+kdenlive:folderid, kdenlive:clip_type. If the GUI ever warns, add the missing
+property in `scaffold.go` — the node tree makes it a one-liner.
+
+**When you can't script the GUI's "add a clip, save, diff" step, use a real
+existing project as the diff reference.**
+_Why:_ The plan's procedure needs the Kdenlive GUI; headless validation isn't
+available (no `melt` on PATH).
+_How to apply:_ Read a real `.kdenlive` to learn the exact producer/entry/folder
+format, and add a test that round-trips real project files (skip when absent).
+The final "opens with zero warnings" remains a manual GUI check.
+
+**Bins are `kdenlive:folder.<parent>.<id>` properties in `main_bin`; clips are
+`<entry producer="id">` there.**
+_Why:_ Rating→bin routing needs the folder *id*, not its name.
+_How to apply:_ Build a name→id map from the folder properties; route rating ≥ 4
+to Selects, else A-Cam; fall back to `-1` (root) if the folder is absent.
+
+**A semantic (not byte-exact) XML round-trip is fine for .kdenlive.**
+_Why:_ Kdenlive reformats on every save, so preserving element/attr/text but
+normalizing whitespace loses nothing that matters.
+_How to apply:_ The node tree preserves structure and attribute order; tests
+assert counts/values, not bytes.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
