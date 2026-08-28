@@ -57,6 +57,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/projects/{id}", s.handleDetail)
 	mux.HandleFunc("POST /api/projects/{id}/run/{step}", s.handleRun)
 	mux.HandleFunc("POST /api/projects/{id}/ingest", s.handleIngest)
+	mux.HandleFunc("POST /api/projects/{id}/thumbs", s.handleThumbsRun)
+	mux.HandleFunc("GET /api/projects/{id}/thumbs/candidates", s.handleCandidates)
+	mux.HandleFunc("POST /api/projects/{id}/thumbnail", s.handleSetThumbnail)
+	mux.HandleFunc("GET /media/thumb/{id}/{file}", s.handleThumbMedia)
 	// The review room: the full serve UI + its API/media, mounted per project.
 	// Registered per method (GET assets/manifest/proxy, PATCH clip edits) so it
 	// doesn't collide with the catch-all "GET /" frontend route.

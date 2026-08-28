@@ -119,6 +119,62 @@ func TestReviewMount(t *testing.T) {
 	}
 }
 
+func TestThumbnailPicker(t *testing.T) {
+	root := t.TempDir()
+	dir := writeProject(t, root, "2026-08-02_b", true)
+	// Seed two extracted candidates + a contact sheet (no ffmpeg needed).
+	tdir := filepath.Join(dir, "thumbs")
+	os.MkdirAll(tdir, 0o755)
+	os.WriteFile(filepath.Join(tdir, "candidate-01-0m10s.png"), []byte("AAA"), 0o644)
+	os.WriteFile(filepath.Join(tdir, "candidate-02-1m20s.png"), []byte("BBB"), 0o644)
+	os.WriteFile(filepath.Join(tdir, "contact-sheet.png"), []byte("SHEET"), 0o644)
+	ts := newTS(t, root)
+	id := encodeID(dir)
+
+	// Candidate list, nothing selected yet.
+	var cands candidatesResp
+	res, _ := http.Get(ts.URL + "/api/projects/" + id + "/thumbs/candidates")
+	json.NewDecoder(res.Body).Decode(&cands)
+	if len(cands.Candidates) != 2 || cands.ContactSheet != "contact-sheet.png" {
+		t.Fatalf("candidates = %+v, want 2 + a contact sheet", cands)
+	}
+	if cands.Current != "" {
+		t.Errorf("current = %q, want empty before any pick", cands.Current)
+	}
+
+	// Pick candidate 2.
+	res2, _ := http.Post(ts.URL+"/api/projects/"+id+"/thumbnail", "application/json",
+		strings.NewReader(`{"file":"candidate-02-1m20s.png"}`))
+	if res2.StatusCode != 200 {
+		t.Fatalf("set thumbnail status %d", res2.StatusCode)
+	}
+	// thumbnail.png now exists with the chosen bytes.
+	got, err := os.ReadFile(filepath.Join(tdir, "thumbnail.png"))
+	if err != nil || string(got) != "BBB" {
+		t.Fatalf("thumbnail.png = %q err=%v, want the picked candidate's bytes", got, err)
+	}
+	// The list now reports it as current.
+	var after candidatesResp
+	res3, _ := http.Get(ts.URL + "/api/projects/" + id + "/thumbs/candidates")
+	json.NewDecoder(res3.Body).Decode(&after)
+	if after.Current != "candidate-02-1m20s.png" {
+		t.Errorf("current = %q, want candidate-02", after.Current)
+	}
+
+	// Media serves a candidate; path traversal is rejected.
+	res4, _ := http.Get(ts.URL + "/media/thumb/" + id + "/candidate-01-0m10s.png")
+	body, _ := io.ReadAll(res4.Body)
+	if res4.StatusCode != 200 || string(body) != "AAA" {
+		t.Errorf("media serve status=%d body=%q", res4.StatusCode, body)
+	}
+	// A non-candidate file can't be set as the thumbnail.
+	res5, _ := http.Post(ts.URL+"/api/projects/"+id+"/thumbnail", "application/json",
+		strings.NewReader(`{"file":"../video.yaml"}`))
+	if res5.StatusCode != 400 {
+		t.Errorf("setting a non-candidate returned %d, want 400", res5.StatusCode)
+	}
+}
+
 func TestProjectDetail(t *testing.T) {
 	root := t.TempDir()
 	writeProject(t, root, "2026-08-02_b", true)
