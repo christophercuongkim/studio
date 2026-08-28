@@ -28,13 +28,14 @@ var ErrInterrupted = errors.New("ingest interrupted")
 
 // Options configures a single ingest run.
 type Options struct {
-	DumpDir    string
-	ProjectDir string
-	CamCode    string    // camera code for the shoot (falls back to "CAM")
-	Copy       bool      // copy instead of move; leaves the dump untouched
-	Jobs       int       // parallelism for checksum + proxy work; <1 means auto
-	Append     bool      // add to an existing manifest
-	Now        time.Time // shoot/creation timestamp; zero means time.Now()
+	DumpDir     string
+	ProjectDir  string
+	CamCode     string    // camera code for the shoot (falls back to "CAM")
+	Copy        bool      // copy instead of move; leaves the dump untouched
+	ClearSource bool      // with Copy: after a verified copy, delete the sources (empty the card)
+	Jobs        int       // parallelism for checksum + proxy work; <1 means auto
+	Append      bool      // add to an existing manifest
+	Now         time.Time // shoot/creation timestamp; zero means time.Now()
 }
 
 // Summary reports what an ingest run did, for the CLI to print.
@@ -51,6 +52,8 @@ type Summary struct {
 	TotalBytes        int64
 	Elapsed           time.Duration
 	Interrupted       bool
+	SourceCleared     int      // sources deleted after a verified copy (--clear-source)
+	SourceKept        []string // sources kept because their copy didn't verify
 }
 
 // jobs returns the effective parallelism (default runtime.NumCPU()/2, min 1).
@@ -321,6 +324,41 @@ func Run(ctx context.Context, opts Options) (*Summary, error) {
 
 	if err := manifest.Save(opts.ProjectDir, man); err != nil {
 		return nil, fmt.Errorf("save manifest: %w", err)
+	}
+
+	// Empty the card after a verified copy (--clear-source): re-hash each copied
+	// original against its recorded checksum and delete the source only on a
+	// match. Other copied sources (sidecars, extras, proxy candidates, unmatched)
+	// were size-verified during the copy. Never runs on move (sources already
+	// gone), after an interruption, or on a probe-failed group (left in the dump).
+	if opts.Copy && opts.ClearSource && !interrupted && ctx.Err() == nil {
+		for i := range kept {
+			if got, err := xxh64File(moved[i].originalDst); err != nil || got != sums[i] {
+				sum.SourceKept = append(sum.SourceKept, kept[i].g.original.path)
+			} else if os.Remove(kept[i].g.original.path) == nil {
+				sum.SourceCleared++
+			}
+			for _, s := range kept[i].g.sidecars {
+				if os.Remove(s.path) == nil {
+					sum.SourceCleared++
+				}
+			}
+			for _, e := range kept[i].g.extras {
+				if os.Remove(e.path) == nil {
+					sum.SourceCleared++
+				}
+			}
+			if kept[i].g.proxyCand != nil {
+				if os.Remove(kept[i].g.proxyCand.path) == nil {
+					sum.SourceCleared++
+				}
+			}
+		}
+		for _, u := range unmatched {
+			if os.Remove(u.path) == nil {
+				sum.SourceCleared++
+			}
+		}
 	}
 
 	sum.Interrupted = interrupted || ctx.Err() != nil
