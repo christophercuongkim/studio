@@ -16,7 +16,7 @@ var commands = []*Command{
 	{Name: "scaffold", Usage: "<project>", Summary: "Generate a Kdenlive project from a template", Run: runScaffold},
 	{Name: "status", Usage: "<project>", Summary: "Show review/apply counts for a project"},
 	{Name: "search", Usage: "<text>", Summary: "Search clips across every ingested shoot", Run: runSearch},
-	{Name: "prompt", Usage: "<project>", Summary: "Bullet-script recording prompter"},
+	{Name: "prompt", Usage: "<project>", Summary: "Bullet-script recording prompter", Run: runPrompt},
 	{Name: "chapters", Usage: "<project>", Summary: "Kdenlive guides → YouTube chapters", Run: runChapters},
 	{Name: "qc", Usage: "<project>", Summary: "Pre-upload render checks"},
 	{Name: "thumbs", Usage: "<project>", Summary: "Extract and rank thumbnail candidates"},
