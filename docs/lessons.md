@@ -324,6 +324,30 @@ render duration, so tail silence still overlaps the tail window.
 
 ---
 
+## CHR-16 — thumbs
+
+**Laplacian-variance sharpness needs the luma plane precomputed, not repeated
+`image.At` calls.**
+_Why:_ A 4K frame is ~8M pixels; scoring via per-pixel `At()` inside the kernel
+loop is brutally slow.
+_How to apply:_ Flatten luma to a `[]float64` once, then run the 3×3 kernel with
+an online (Welford) mean/variance. Remember `color.RGBA()` returns 16-bit —
+divide by 257 for 0..255.
+
+**Farthest-point sampling gives good spread without a fancy objective.**
+_Why:_ "Maximize pairwise timestamp spread" sounds like an optimization problem;
+greedy nearest-distance maximization is simple and picks the extremes.
+_How to apply:_ Sort the sharp half, seed with the sharpest, then repeatedly add
+the frame whose nearest chosen timestamp is largest.
+
+**A 3×5 hand-rolled bitmap font beats adding a font dependency for captions.**
+_Why:_ `golang.org/x/image/font` is outside the sanctioned deps; captions only
+need digits and ':'.
+_How to apply:_ Encode each glyph as five 3-bit rows, draw scaled with filled
+rects. ~20 lines, zero deps.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
