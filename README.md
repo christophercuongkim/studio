@@ -56,6 +56,19 @@ uploadDefaults:
   categoryId: "27"                # 27 = Education
 ```
 
+### External drives (SD cards, SSDs)
+
+studio can pick from your connected removable drives instead of you typing paths.
+On Linux these mount at `/run/media/<you>/<LABEL>`, so the volume label is shown
+directly:
+
+- `studio new <slug> --pick` — choose which external SSD to create the project on.
+- `studio ingest --pick --project <dir>` — choose which card to pull footage from.
+
+Ingesting from a card **copies** by default (the card stays intact, safe to
+eject); pass `--move` to force a move. Setting `externalRoot` (above) makes
+`studio new` use your SSD automatically whenever it's mounted, no `--pick` needed.
+
 ---
 
 ## Commands
