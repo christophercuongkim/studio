@@ -18,7 +18,7 @@ var commands = []*Command{
 	{Name: "search", Usage: "<text>", Summary: "Search clips across every ingested shoot", Run: runSearch},
 	{Name: "prompt", Usage: "<project>", Summary: "Bullet-script recording prompter", Run: runPrompt},
 	{Name: "chapters", Usage: "<project>", Summary: "Kdenlive guides → YouTube chapters", Run: runChapters},
-	{Name: "qc", Usage: "<project>", Summary: "Pre-upload render checks"},
+	{Name: "qc", Usage: "<project>", Summary: "Pre-upload render checks", Run: runQC},
 	{Name: "thumbs", Usage: "<project>", Summary: "Extract and rank thumbnail candidates"},
 	{Name: "upload", Usage: "<project>", Summary: "Upload the render to YouTube"},
 	{Name: "archive", Usage: "<project>", Summary: "Verify, cold-store, and prune a finished project"},
