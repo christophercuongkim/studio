@@ -1,0 +1,122 @@
+/* studio dashboard — SeaKim tokens (semantic only, square corners, hairline
+   borders, press-scale, focus from base.css; both themes follow the tokens). */
+
+#topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--topbar-h);
+  padding: 0 var(--space-6);
+  background: var(--surface-sunken);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+}
+#brand { font: var(--type-heading); color: var(--text-primary); }
+
+#theme-toggle {
+  font: var(--type-label);
+  color: var(--text-secondary);
+  background: var(--fill-neutral);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-none);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+#theme-toggle:hover { background: var(--fill-neutral-hover); color: var(--text-primary); }
+#theme-toggle:active { transform: scale(var(--press-scale)); }
+
+#main { max-width: var(--container-lg); margin: 0 auto; padding: var(--space-7) var(--space-6); }
+.view-title { font: var(--type-title); color: var(--text-primary); margin: 0 0 var(--space-6); }
+
+/* Overview: project cards */
+#cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-5);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--pad-card);
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-none);
+  cursor: pointer;
+  text-align: left;
+  transition: var(--transition-surface);
+}
+.card:hover { border-color: var(--border-default); background: var(--surface-hover); }
+.card:active { transform: scale(var(--press-scale)); }
+.card h3 { margin: 0; font: var(--type-subheading); color: var(--text-primary); }
+
+/* Compact step strip: a square per stage, filled when done */
+.strip { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.pip {
+  width: var(--space-4);
+  height: var(--space-3);
+  background: var(--surface-inset);
+  border: var(--border-hairline) solid var(--border-subtle);
+}
+.pip.done { background: var(--fill-accent); border-color: var(--fill-accent); }
+.pip.next { border-color: var(--border-accent); }
+
+.next-badge { font: var(--type-caption); color: var(--text-secondary); }
+.next-badge .kw { color: var(--text-accent); }
+.next-badge.complete { color: var(--text-success); }
+
+/* Detail */
+#back {
+  font: var(--type-label);
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-4);
+  cursor: pointer;
+}
+#back:hover { color: var(--text-primary); }
+#back:active { transform: scale(var(--press-scale)); }
+
+.checklist { list-style: none; margin: 0 0 var(--space-7); padding: 0; }
+.checklist li {
+  display: grid;
+  grid-template-columns: 1.6em 8em 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+}
+.checklist .box { color: var(--text-tertiary); font-family: var(--font-mono); }
+.checklist li.done .box { color: var(--text-success); }
+.checklist li.next .name { color: var(--text-accent); font-weight: var(--weight-semibold); }
+.checklist .name { color: var(--text-primary); font: var(--type-body-sm); }
+.checklist .detail { color: var(--text-tertiary); font: var(--type-caption); }
+
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-6); }
+.panel {
+  padding: var(--pad-card);
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-subtle);
+}
+.panel h2 { margin: 0 0 var(--space-4); font: var(--type-eyebrow); color: var(--text-tertiary); }
+.kv { display: grid; grid-template-columns: 7em 1fr; gap: var(--space-2) var(--space-4); font: var(--type-body-sm); }
+.kv dt { color: var(--text-tertiary); }
+.kv dd { margin: 0; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+#toast {
+  position: fixed;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--fill-danger-subtle);
+  color: var(--text-danger);
+  border: var(--border-hairline) solid var(--border-default);
+  padding: var(--space-3) var(--space-5);
+  font: var(--type-body-sm);
+  box-shadow: var(--shadow-toast);
+}

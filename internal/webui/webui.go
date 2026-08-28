@@ -10,6 +10,7 @@ import (
 
 //go:embed serve/index.html serve/app.js serve/app.css
 //go:embed prompt/index.html prompt/app.js prompt/app.css
+//go:embed dashboard/index.html dashboard/app.js dashboard/app.css
 //go:embed seakim/styles.css seakim/tokens/*.css seakim/fonts/*.woff2
 var files embed.FS
 
@@ -22,6 +23,11 @@ func ServeFS() fs.FS {
 // PromptFS returns the file tree for the `studio prompt` teleprompter UI.
 func PromptFS() fs.FS {
 	return sub("prompt")
+}
+
+// DashboardFS returns the file tree for the `studio dashboard` cockpit UI.
+func DashboardFS() fs.FS {
+	return sub("dashboard")
 }
 
 // SeakimFS returns the vendored SeaKim design-system runtime (styles.css +
