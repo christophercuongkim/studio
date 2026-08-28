@@ -455,6 +455,24 @@ under `nix develop`.
 
 ---
 
+## CHR-22 — dashboard slice 1
+
+**Embed the pipeline `*State` in the API response instead of re-deriving it.**
+_Why:_ The dashboard must show the exact same stage/next the CLI's `studio
+status` does; two derivations would drift.
+_How to apply:_ `summary` embeds `*pipeline.State` (+ an id); the JSON is
+whatever `Detect` produced. Added JSON tags to the pipeline types — harmless on
+a pure data struct, and it makes the one source of truth serializable.
+
+**An opaque id derived from a path still needs a server-side allowlist check.**
+_Why:_ The project id is base64 of its dir; a crafted id could otherwise make
+the detail endpoint read any directory on disk (localhost, but still).
+_How to apply:_ `handleDetail` decodes the id, then confirms it's in
+`FindProjects` (`known()`) before loading — the id is a convenience, not an
+authorization.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
