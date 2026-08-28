@@ -276,6 +276,25 @@ Keeps text outside the sentinels byte-stable.
 
 ---
 
+## CHR-14 — prompt
+
+**Server-authoritative state + 1s polling is enough to sync multiple devices —
+no websockets.**
+_Why:_ The laptop and the iPad both need the same prompter position; making the
+server own it means every device just renders `GET /api/state`.
+_How to apply:_ Mutations go through `POST /api/action`; the frontend never
+holds authoritative position. Return the log event type from the mutate
+function so logging happens once, after the lock is released.
+
+**Line-numbered parse errors need the frontmatter offset added back.**
+_Why:_ The body is parsed after stripping frontmatter, so body line i is file
+line `offset + i + 1`.
+_How to apply:_ Track `bodyOffset` (the line after the closing `---`) and report
+`bodyOffset + i + 1`. Cap nesting at one level by matching exactly `"  - "`; a
+4-space line is a deliberate error, not silent acceptance.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
