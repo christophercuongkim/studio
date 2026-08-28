@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>studio — review</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <header id="shoot"></header>
+      <ul id="cliplist"></ul>
+      <footer id="progress"></footer>
+    </aside>
+
+    <main id="stage">
+      <div id="viewer">
+        <video id="video" preload="auto" muted></video>
+        <p id="noproxy" hidden>No proxy for this clip.</p>
+      </div>
+      <div id="meta"></div>
+      <form id="nameform" autocomplete="off">
+        <div class="row">
+          <label>desc <input id="desc" type="text" maxlength="40" placeholder="sunset-dock-wide"></label>
+          <label>take <input id="take" type="number" min="0" step="1" placeholder="—"></label>
+        </div>
+        <div id="preview"></div>
+        <p class="hint">j/k next·prev · space play · ←/→ seek · , . frame · 1–5 rate · x reject · r desc · enter save+keep · u next pending</p>
+      </form>
+    </main>
+  </div>
+  <div id="toast" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
