@@ -348,6 +348,31 @@ rects. ~20 lines, zero deps.
 
 ---
 
+## CHR-17 — upload
+
+**Order the guards so everything testable runs before the network.**
+_Why:_ OAuth can't be exercised in CI, but idempotency, the QC gate, validation,
+and dry-run all can — if they run before `service(ctx)`.
+_How to apply:_ In Run: validate → dry-run short-circuit → idempotency → QC gate
+→ *then* build the service. All four early paths have offline unit tests; the
+insert/thumbnail/playlist calls are the only untested surface.
+
+**Don't perform irreversible external actions to "verify" — build to the network
+boundary and stop.**
+_Why:_ A real upload needs the user's Google credentials and posts publicly;
+running it isn't the agent's call.
+_How to apply:_ Test up to the boundary, make `--dry-run` prove the payload, and
+document the live run as a manual step. Same posture as the Kdenlive GUI check.
+
+**Write metadata back only after all sub-steps succeed, and name the id in the
+error.**
+_Why:_ If the insert succeeds but the video.yaml save fails, the upload isn't
+lost — you just need the id.
+_How to apply:_ Set videoId/uploadedAt after insert+thumbnail+playlists; on save
+failure return an error containing the videoId.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
