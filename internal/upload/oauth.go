@@ -31,8 +31,9 @@ func configDir() (string, error) {
 }
 
 // service builds an authenticated YouTube service, acquiring and caching an
-// OAuth token on first use via a loopback redirect.
-func service(ctx context.Context) (*youtube.Service, error) {
+// OAuth token on first use via a loopback redirect. notify, when non-nil,
+// receives the authorization URL (so a UI can surface it) instead of stdout.
+func service(ctx context.Context, notify func(url string)) (*youtube.Service, error) {
 	dir, err := configDir()
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func service(ctx context.Context) (*youtube.Service, error) {
 
 	tok, err := loadToken(filepath.Join(dir, tokenFile))
 	if err != nil {
-		tok, err = acquireToken(ctx, cfg)
+		tok, err = acquireToken(ctx, cfg, notify)
 		if err != nil {
 			return nil, err
 		}
@@ -81,8 +82,9 @@ func saveToken(path string, tok *oauth2.Token) error {
 }
 
 // acquireToken runs the installed-app auth-code flow with a loopback redirect on
-// 127.0.0.1, capturing the code the browser is redirected to.
-func acquireToken(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, error) {
+// 127.0.0.1, capturing the code the browser is redirected to. notify, when
+// non-nil, receives the auth URL (for a UI); otherwise it's printed to stdout.
+func acquireToken(ctx context.Context, cfg *oauth2.Config, notify func(url string)) (*oauth2.Token, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
@@ -104,8 +106,12 @@ func acquireToken(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, error
 	defer srv.Close()
 
 	authURL := cfg.AuthCodeURL("state", oauth2.AccessTypeOffline)
-	fmt.Println("Open this URL to authorize studio, then return here:")
-	fmt.Println("  " + authURL)
+	if notify != nil {
+		notify(authURL)
+	} else {
+		fmt.Println("Open this URL to authorize studio, then return here:")
+		fmt.Println("  " + authURL)
+	}
 
 	select {
 	case code := <-codeCh:

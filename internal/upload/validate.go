@@ -27,6 +27,15 @@ const (
 // Validate checks video.yaml against YouTube's limits and that the render (and,
 // if present, the thumbnail) is acceptable. It returns all problems at once.
 func Validate(vy *videoyaml.VideoYAML, projectDir string) error {
+	if problems := Problems(vy, projectDir); len(problems) > 0 {
+		return fmt.Errorf("video.yaml is not ready to upload:\n  - %s", strings.Join(problems, "\n  - "))
+	}
+	return nil
+}
+
+// Problems returns every reason video.yaml can't be uploaded yet, as a list (the
+// dashboard shows them inline; Validate joins them into one error).
+func Problems(vy *videoyaml.VideoYAML, projectDir string) []string {
 	var problems []string
 
 	if vy.Title == "" {
@@ -66,10 +75,7 @@ func Validate(vy *videoyaml.VideoYAML, projectDir string) error {
 		}
 	}
 
-	if len(problems) > 0 {
-		return fmt.Errorf("video.yaml is not ready to upload:\n  - %s", strings.Join(problems, "\n  - "))
-	}
-	return nil
+	return problems
 }
 
 // tagsTotal counts characters across all tags (YouTube's ~500-char budget).

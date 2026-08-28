@@ -20,6 +20,9 @@ type Options struct {
 	Update     bool   // metadata-only update of an existing video
 	SkipQC     bool
 	Now        time.Time
+	// AuthPrompt, when set, receives the OAuth URL on first-time auth so a UI can
+	// surface it; nil falls back to printing it on stdout (the CLI).
+	AuthPrompt func(url string)
 }
 
 // Result reports what happened.
@@ -62,7 +65,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}
 
-	svc, err := service(ctx)
+	svc, err := service(ctx, opts.AuthPrompt)
 	if err != nil {
 		return nil, err
 	}
