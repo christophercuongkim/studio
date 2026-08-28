@@ -175,6 +175,44 @@ func TestThumbnailPicker(t *testing.T) {
 	}
 }
 
+func TestUploadPreviewAndEdit(t *testing.T) {
+	root := t.TempDir()
+	dir := writeProject(t, root, "2026-08-02_b", true)
+	ts := newTS(t, root)
+	id := encodeID(dir)
+
+	// Preview: no render + no qc-report yet → problems and a blocked gate.
+	var p uploadPreview
+	res, _ := http.Get(ts.URL + "/api/projects/" + id + "/upload/preview")
+	json.NewDecoder(res.Body).Decode(&p)
+	if len(p.Problems) == 0 || p.QCGate.OK || p.Uploaded {
+		t.Fatalf("fresh preview = %+v, want problems + blocked gate + not uploaded", p)
+	}
+	if !strings.Contains(p.Payload, "would upload") {
+		t.Errorf("payload missing dry-run text: %q", p.Payload)
+	}
+
+	// Edit the metadata; the returned preview reflects it and it persists.
+	body := `{"title":"New Title","tags":["hiking","gear"],"privacy":"public","description":"hi"}`
+	req, _ := http.NewRequest("PATCH", ts.URL+"/api/projects/"+id+"/video", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res2, err := http.DefaultClient.Do(req)
+	if err != nil || res2.StatusCode != 200 {
+		t.Fatalf("video patch: err=%v status=%v", err, res2.StatusCode)
+	}
+	var after uploadPreview
+	json.NewDecoder(res2.Body).Decode(&after)
+	if after.Video.Title != "New Title" || after.Video.Privacy != "public" || len(after.Video.Tags) != 2 {
+		t.Fatalf("edited video = %+v, want the new title/privacy/tags", after.Video)
+	}
+
+	// Persisted to disk.
+	vy, err := videoyaml.Load(dir)
+	if err != nil || vy.Title != "New Title" || vy.Privacy != "public" {
+		t.Fatalf("video.yaml not persisted: %+v err=%v", vy, err)
+	}
+}
+
 func TestProjectDetail(t *testing.T) {
 	root := t.TempDir()
 	writeProject(t, root, "2026-08-02_b", true)
