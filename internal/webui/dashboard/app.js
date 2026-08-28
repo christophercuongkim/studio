@@ -149,6 +149,10 @@ function actions(d) {
     ingestForm(d.id).then((f) => wrap.appendChild(f));
     return wrap;
   }
+  if (step === "review") {
+    wrap.appendChild(button("Open review", () => openReview(d.id), "primary"));
+    return wrap;
+  }
   if (!RUNNABLE.has(step)) {
     const note = document.createElement("p");
     note.className = "note";
@@ -252,6 +256,32 @@ async function runStep(id, step, dry) {
   // A real run may have advanced the pipeline — re-render (keeps the log).
   if (!dry) await renderDetail(id);
   else document.querySelectorAll(".actions .btn").forEach((b) => (b.disabled = false));
+}
+
+// openReview embeds the full review UI (served per-project under
+// /projects/{id}/review/) in an iframe, so rating/naming/keeping clips happens
+// inside the cockpit. "Done reviewing" tears it down and re-renders the detail
+// so the checklist reflects the new keep/reject counts.
+function openReview(id) {
+  const panel = el("review-panel");
+  panel.hidden = false;
+  panel.innerHTML = "";
+
+  const bar = document.createElement("div");
+  bar.className = "review-bar";
+  bar.appendChild(button("Done reviewing", () => {
+    panel.hidden = true;
+    panel.innerHTML = "";
+    renderDetail(id);
+  }, "primary"));
+
+  const frame = document.createElement("iframe");
+  frame.className = "review-frame";
+  frame.src = `/projects/${id}/review/`;
+  frame.title = "review";
+
+  panel.append(bar, frame);
+  panel.scrollIntoView({ block: "start" });
 }
 
 function showOverview() {
