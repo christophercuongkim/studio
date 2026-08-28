@@ -280,6 +280,14 @@ func TestIndexServed(t *testing.T) {
 	}
 }
 
+func TestSeakimServed(t *testing.T) {
+	ts := newTS(t, t.TempDir())
+	res, _ := http.Get(ts.URL + "/seakim/styles.css")
+	if res.StatusCode != 200 {
+		t.Errorf("vendored SeaKim not served (status %d)", res.StatusCode)
+	}
+}
+
 func writeF(t *testing.T, dir, rel, content string) {
 	t.Helper()
 	p := filepath.Join(dir, rel)
