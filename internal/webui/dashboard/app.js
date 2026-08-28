@@ -52,7 +52,22 @@ function projectCard(p) {
   return card;
 }
 
+// Steps the dashboard can run, and which support a dry-run preview.
+const RUNNABLE = new Set(["apply", "scaffold", "chapters", "qc", "thumbs", "archive"]);
+const DRYABLE = new Set(["apply", "archive"]);
+
 async function showDetail(id) {
+  el("runlog").textContent = "";
+  el("runlog").hidden = true;
+  await renderDetail(id);
+  el("overview").hidden = true;
+  el("detail").hidden = false;
+}
+
+// renderDetail (re)draws the top of the detail view (checklist, actions, meta)
+// without wiping the run log, so a step's output stays visible as the checklist
+// advances.
+async function renderDetail(id) {
   let d;
   try {
     d = await (await fetch(`/api/projects/${id}`)).json();
@@ -60,11 +75,68 @@ async function showDetail(id) {
     return toast("failed to load project");
   }
   el("detail-title").textContent = d.title;
-  el("detail-body").innerHTML = "";
-  el("detail-body").append(checklist(d), metaPanels(d));
+  const top = el("detail-top");
+  top.innerHTML = "";
+  top.append(checklist(d), actions(d), metaPanels(d));
+}
 
-  el("overview").hidden = true;
-  el("detail").hidden = false;
+function actions(d) {
+  const wrap = document.createElement("div");
+  wrap.className = "actions";
+  const step = d.next;
+  if (!step) return wrap; // complete
+
+  if (!RUNNABLE.has(step)) {
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = nextNote(step);
+    wrap.appendChild(note);
+    return wrap;
+  }
+  if (DRYABLE.has(step)) {
+    wrap.appendChild(button(`Preview ${step}`, () => runStep(d.id, step, true)));
+  }
+  wrap.appendChild(button(`Run ${step}`, () => {
+    if (DRYABLE.has(step) && !confirm(`Run ${step}? This changes files in the project.`)) return;
+    runStep(d.id, step, false);
+  }, "primary"));
+  return wrap;
+}
+
+function nextNote(step) {
+  const via = { ingest: "studio ingest", review: "studio serve", upload: "studio upload" }[step];
+  return via ? `Next: ${step} — coming to the dashboard soon; for now use \`${via}\`.` : `Next: ${step}`;
+}
+
+function button(label, onclick, kind) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "btn" + (kind === "primary" ? " primary" : "");
+  b.textContent = label;
+  b.onclick = onclick;
+  return b;
+}
+
+async function runStep(id, step, dry) {
+  const log = el("runlog");
+  log.hidden = false;
+  document.querySelectorAll(".actions .btn").forEach((b) => (b.disabled = true));
+  try {
+    const res = await fetch(`/api/projects/${id}/run/${step}${dry ? "?dry=1" : ""}`, { method: "POST" });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      log.textContent += dec.decode(value, { stream: true });
+      log.scrollTop = log.scrollHeight;
+    }
+  } catch (e) {
+    log.textContent += "\n[connection error]\n";
+  }
+  // A real run may have advanced the pipeline — re-render (keeps the log).
+  if (!dry) await renderDetail(id);
+  else document.querySelectorAll(".actions .btn").forEach((b) => (b.disabled = false));
 }
 
 function showOverview() {

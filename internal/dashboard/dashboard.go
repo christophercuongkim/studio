@@ -31,6 +31,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/projects", s.handleList)
 	mux.HandleFunc("GET /api/projects/{id}", s.handleDetail)
+	mux.HandleFunc("POST /api/projects/{id}/run/{step}", s.handleRun)
 	mux.Handle("GET /seakim/", http.StripPrefix("/seakim/", http.FileServer(http.FS(webui.SeakimFS()))))
 	mux.Handle("GET /", http.FileServer(http.FS(webui.DashboardFS())))
 	return mux

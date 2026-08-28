@@ -97,6 +97,40 @@
 .checklist .name { color: var(--text-primary); font: var(--type-body-sm); }
 .checklist .detail { color: var(--text-tertiary); font: var(--type-caption); }
 
+/* Actions (run/preview buttons) + streamed log */
+.actions { display: flex; gap: var(--space-3); align-items: center; margin-bottom: var(--space-6); }
+.actions .note { margin: 0; color: var(--text-secondary); font: var(--type-body-sm); }
+.btn {
+  font: var(--type-label);
+  color: var(--text-secondary);
+  background: var(--fill-neutral);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-none);
+  height: var(--control-h-md);
+  padding: 0 var(--space-5);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.btn:hover { background: var(--fill-neutral-hover); color: var(--text-primary); }
+.btn:active { transform: scale(var(--press-scale)); }
+.btn:disabled { color: var(--text-disabled); border-color: var(--border-disabled); cursor: default; }
+.btn.primary { background: var(--fill-accent); color: var(--on-accent); border-color: var(--fill-accent); }
+.btn.primary:hover { background: var(--fill-accent-hover); color: var(--on-accent); }
+
+#runlog {
+  margin: 0 0 var(--space-7);
+  max-height: 40vh;
+  overflow: auto;
+  padding: var(--pad-card);
+  background: var(--surface-inset);
+  border: var(--border-hairline) solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  white-space: pre-wrap;
+}
+
 .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-6); }
 .panel {
   padding: var(--pad-card);
