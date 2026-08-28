@@ -157,6 +157,10 @@ function actions(d) {
     wrap.appendChild(thumbsPicker(d.id));
     return wrap;
   }
+  if (step === "upload") {
+    wrap.appendChild(uploadPanel(d.id));
+    return wrap;
+  }
   if (!RUNNABLE.has(step)) {
     const note = document.createElement("p");
     note.className = "note";
@@ -328,6 +332,153 @@ async function setThumbnail(id, file, gallery) {
   }
   await loadCandidates(id, gallery); // re-mark the current pick
   renderDetail(id); // thumbs step is now done
+}
+
+// uploadPanel builds the publish room: a video.yaml editor, a live payload
+// preview, the QC-gate indicator, and an Upload button gated on validation.
+function uploadPanel(id) {
+  const wrap = document.createElement("div");
+  wrap.className = "upload";
+  wrap.innerHTML = `
+    <form class="form upload-form">
+      <label>Title <input name="title" maxlength="100"></label>
+      <label>Tags (comma-separated) <input name="tags"></label>
+      <label>Privacy
+        <select name="privacy">
+          <option value="private">private</option>
+          <option value="unlisted">unlisted</option>
+          <option value="public">public</option>
+        </select>
+      </label>
+      <label>Description <textarea name="description" rows="8"></textarea></label>
+    </form>
+    <div class="upload-side">
+      <div class="gate" data-gate></div>
+      <ul class="problems" data-problems></ul>
+      <pre class="payload" data-payload></pre>
+      <label class="check"><input type="checkbox" data-skipqc> Skip the QC gate</label>
+      <div class="upload-actions" data-actions></div>
+    </div>`;
+
+  const form = wrap.querySelector(".upload-form");
+  const skip = wrap.querySelector("[data-skipqc]");
+  let latest = null;
+
+  const paint = (p) => {
+    latest = p;
+    // Populate the editor once (don't clobber mid-typing).
+    if (document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
+      form.title.value = p.video.title;
+      form.tags.value = (p.video.tags || []).join(", ");
+      form.privacy.value = p.video.privacy;
+      form.description.value = p.video.description;
+    }
+    wrap.querySelector("[data-payload]").textContent = p.payload;
+
+    const gate = wrap.querySelector("[data-gate]");
+    gate.className = "gate " + (p.qcGate.ok ? "ok" : "bad");
+    gate.textContent = (p.qcGate.ok ? "QC gate: " : "QC gate blocked: ") + p.qcGate.detail;
+
+    const probs = wrap.querySelector("[data-problems]");
+    probs.innerHTML = "";
+    for (const msg of p.problems) {
+      const li = document.createElement("li");
+      li.textContent = msg;
+      probs.appendChild(li);
+    }
+    renderUploadActions(id, wrap, p, skip.checked);
+  };
+
+  const save = debounce(async () => {
+    const tags = form.tags.value.split(",").map((t) => t.trim()).filter(Boolean);
+    try {
+      const res = await fetch(`/api/projects/${id}/video`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title.value,
+          tags,
+          privacy: form.privacy.value,
+          description: form.description.value,
+        }),
+      });
+      if (res.ok) paint(await res.json());
+    } catch (e) {
+      toast("save failed");
+    }
+  }, 400);
+
+  form.addEventListener("input", save);
+  skip.addEventListener("change", () => renderUploadActions(id, wrap, latest, skip.checked));
+
+  fetch(`/api/projects/${id}/upload/preview`)
+    .then((r) => r.json())
+    .then(paint)
+    .catch(() => toast("failed to load upload preview"));
+  return wrap;
+}
+
+function renderUploadActions(id, wrap, p, skipQC) {
+  const actions = wrap.querySelector("[data-actions]");
+  actions.innerHTML = "";
+  if (!p) return;
+
+  if (p.uploaded) {
+    const link = document.createElement("a");
+    link.href = `https://youtu.be/${p.videoId}`;
+    link.target = "_blank";
+    link.className = "yt-link";
+    link.textContent = `Uploaded → youtu.be/${p.videoId}`;
+    actions.appendChild(link);
+    actions.appendChild(button("Update metadata", () => runUpload(id, wrap, { update: true }), "primary"));
+    return;
+  }
+  const ready = p.problems.length === 0 && (p.qcGate.ok || skipQC);
+  const btn = button("Upload", () => {
+    if (!confirm("Upload this video to YouTube?")) return;
+    runUpload(id, wrap, { skipQC });
+  }, "primary");
+  btn.disabled = !ready;
+  actions.appendChild(btn);
+  if (!ready) {
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = "Resolve the problems above (and the QC gate) to enable upload.";
+    actions.appendChild(note);
+  }
+}
+
+async function runUpload(id, wrap, opts) {
+  const log = el("runlog");
+  log.hidden = false;
+  log.textContent = "";
+  wrap.querySelectorAll("button, input, textarea, select").forEach((b) => (b.disabled = true));
+  try {
+    const res = await fetch(`/api/projects/${id}/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(opts),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      log.textContent += dec.decode(value, { stream: true });
+      log.scrollTop = log.scrollHeight;
+    }
+  } catch (e) {
+    log.textContent += "\n[connection error]\n";
+  }
+  renderDetail(id); // reflect the uploaded state / advance the checklist
+}
+
+function debounce(fn, ms) {
+  let t = null;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
 }
 
 function nextNote(step) {
