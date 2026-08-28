@@ -1,0 +1,61 @@
+/* ============================================================
+   SeaKim — motion
+   Springy: things that ENTER or TOGGLE overshoot slightly. Things that
+   EXIT never do — they are faster and ease out. Never animate a value
+   the user is trying to read.
+   ============================================================ */
+
+:root {
+  --dur-instant: 80ms;    /* hover, press */
+  --dur-fast:    140ms;   /* exits, dismissals */
+  --dur-base:    200ms;   /* enters, toggles */
+  --dur-slow:    320ms;   /* sheets, layout shifts */
+
+  --ease-out:    cubic-bezier(0.22, 0.90, 0.28, 1);   /* exits, fades */
+  --ease-spring: cubic-bezier(0.34, 1.42, 0.50, 1);   /* enters, toggles, tabs */
+  --ease-pop:    cubic-bezier(0.20, 1.60, 0.40, 1);   /* badges, knobs, chips */
+
+  /* Skeleton shimmer (0021). A continuous loop, not a one-shot transition: it
+     wants a slow, symmetric duration and a linear ease — the overshoot curves
+     above are meaningless on a loop. Reduced motion is handled by the skeleton
+     itself (it renders a static block), NOT by zeroing this duration, which
+     would freeze the pulse mid-sweep. */
+  --dur-shimmer:  1400ms;
+  --ease-shimmer: linear;
+
+  --transition-control: background-color var(--dur-instant) var(--ease-out),
+                        border-color var(--dur-instant) var(--ease-out),
+                        color var(--dur-instant) var(--ease-out),
+                        transform var(--dur-instant) var(--ease-out);
+  --transition-surface: background-color var(--dur-base) var(--ease-out),
+                        border-color var(--dur-base) var(--ease-out);
+  --transition-spring:  transform var(--dur-base) var(--ease-spring),
+                        opacity var(--dur-base) var(--ease-out);
+
+  /* Press feedback is scale, not colour-only. */
+  --press-scale: 0.97;
+  --press-scale-lg: 0.985;
+}
+
+/* Skeleton shimmer (0021). An animation needs @keyframes, which cannot be inline,
+   so it lives here — motion infrastructure — and components apply `.sk-shimmer`.
+   It pulses background-colour rather than sweeping a gradient (gradients are Tier
+   0-forbidden), so it stays inside the existing rules. The block carries an inline
+   `background: var(--surface-sunken)`, so under reduced motion (animation removed)
+   it is a static block, never a frozen mid-pulse. */
+@keyframes sk-shimmer {
+  0%, 100% { background-color: var(--surface-sunken); }
+  50%      { background-color: var(--surface-shimmer); }
+}
+.sk-shimmer {
+  animation: sk-shimmer var(--dur-shimmer) var(--ease-shimmer) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms; --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms;
+    --press-scale: 1; --press-scale-lg: 1;
+  }
+  /* Not a zeroed duration — that freezes the pulse mid-sweep. Remove it. */
+  .sk-shimmer { animation: none; }
+}

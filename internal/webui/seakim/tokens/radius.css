@@ -1,0 +1,13 @@
+/* Corners are square. This is the loudest decision in the system: nothing
+   that CONTAINS content is ever rounded, at any size, in any app. The only
+   exceptions are shapes that are conceptually circular — avatars, status
+   dots, toggle knobs, count pills. Do not introduce a 4px radius. */
+:root {
+  --radius-none: 0px;
+  --radius-xs:   0px;   /* alias — kept so component code reads intentionally */
+  --radius-sm:   0px;   /* cards, inputs, buttons, sheets, modals, images */
+  --radius-md:   0px;
+  --radius-lg:   0px;
+  --radius-full: 999px; /* count badges, filter chips, toggle tracks */
+  --radius-circle: 50%; /* avatars, dots, round icon affordances */
+}
