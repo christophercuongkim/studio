@@ -89,6 +89,7 @@ eject); pass `--move` to force a move. Setting `externalRoot` (above) makes
 | `studio thumbs <project> [--from render\|clips] [--count 12]` | Extract + rank thumbnail candidates + contact sheet |
 | `studio upload <project> [--dry-run] [--privacy] [--update] [--skip-qc]` | Upload the render to YouTube |
 | `studio archive <project> [--dry-run] [--keep-proxies] [--force]` | Verify, rsync to cold storage, prune regenerable files |
+| `studio dashboard [--addr 127.0.0.1:7730]` | Guided web cockpit: every project's pipeline stage and what's next (localhost) |
 
 Every command validates what it needs up front, exits non-zero on error, and the
 destructive ones (`apply`, `archive`, `upload`) support `--dry-run`.
@@ -132,6 +133,41 @@ studio upload ~/videos/2026-08-27_lake-trip
 # 9. Once it's live, archive the project to cold storage.
 studio archive ~/videos/2026-08-27_lake-trip
 ```
+
+Every step above is also runnable from the **dashboard** (below) — the same
+logic, guided in a browser instead of the terminal.
+
+---
+
+## Dashboard (guided web cockpit)
+
+```sh
+studio dashboard        # http://127.0.0.1:7730 (localhost only)
+```
+
+One page over your `searchRoots`: every project as a card with its pipeline
+stage, and a detail view that knows the next step and runs it for you. It's the
+guided alternative to the CLI — the same `internal/*` logic, no separate code
+path — so anything below can be done here instead:
+
+- **New + ingest** — create a project (choosing an external SSD/SD-card
+  destination from a picker when one is mounted) and import a card, with the
+  option to copy-then-empty the card after a verified copy.
+- **Run steps** — apply, scaffold, chapters, qc, archive stream their output in
+  the browser; `apply`/`archive` offer a dry-run preview first.
+- **Review** — the full review UI (rate/name/keep, `j/k` · `h/l` keymap, instant
+  proxy scrubbing) is embedded in the cockpit; it's the same server as `studio
+  serve`, mounted per project.
+- **Thumbnails** — extract candidates and click one to set the thumbnail.
+- **Upload** — edit `video.yaml`, watch the payload preview + QC gate, and
+  upload; the first-time **OAuth** URL is shown in the browser (see below). An
+  already-uploaded video shows its link and offers a metadata-only update.
+
+The overview live-refreshes every couple of seconds, so a finished step (or a
+change made elsewhere) shows up without a reload. Drive pickers and the OAuth
+prompt all surface in the page — no terminal needed once it's running. For
+second-device access, reach it over Tailscale (below) or an SSH tunnel; it binds
+`127.0.0.1`, so it isn't exposed on your LAN.
 
 ---
 
