@@ -21,6 +21,7 @@
             pkgs.ffmpeg-full
             pkgs.rsync
             pkgs.mpv
+            pkgs.nodejs # runs the vendored SeaKim design conformance checker
           ];
 
           shellHook = ''

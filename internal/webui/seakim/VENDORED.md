@@ -37,9 +37,29 @@ embedded web UIs (`internal/webui/serve`, `internal/webui/prompt`) are a SeaKim
 
 1. **Fonts self-hosted** instead of the Google Fonts `@import` (offline / no-CDN
    invariant). `tokens/fonts.css` replaced; families and weight ranges preserved.
+2. **`data-app="studio"` accent binding** appended to `tokens/apps.css`. studio
+   isn't one of the upstream apps, so it binds its own accent (turf hue) by
+   mirroring the `bench`/`fantasy` ramp — apps.css is the intended extension
+   point for per-app accents. Re-apply this block on re-sync.
 
 No Tier 0 (identity) rule is bent. Icon delivery, if icons are added later, must
 likewise be self-hosted (Phosphor bundled font or inline SVG) — never a CDN.
+
+## Conformance declaration
+
+```yaml
+binding: studio web UI (serve review + prompt teleprompter)
+role: consumer          # per ADR 0010: not a reusable binding — no Tier 2 inventory owed
+tier: 0                 # the identity rules; met in full
+seakim_rules: "4.3"     # reviewed against; from VERSION (never lead)
+checker: tool/conformance-check.mjs — clean on internal/webui
+adaptations: fonts self-hosted; data-app="studio" turf accent (both documented above)
+```
+
+Machine check runs in `go test ./internal/webui` (skips without node; the
+devShell provides it). The judgement half of `conformance.md` (one accent per
+screen — turf; justified shadows — overlays only; sentence-case verb-labelled
+copy; both themes reviewed) was checked by hand.
 
 ## Re-syncing
 
