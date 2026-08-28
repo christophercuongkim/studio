@@ -25,6 +25,7 @@ func runIngest(args []string) error {
 	cam := fs.String("cam", "", "camera code for the shoot (default: config camCode)")
 	copyMode := fs.Bool("copy", false, "copy files instead of moving; leaves the dump untouched")
 	moveMode := fs.Bool("move", false, "force move even from a removable card (overrides the safe default)")
+	clearSource := fs.Bool("clear-source", false, "after a verified copy, delete the sources to empty the card")
 	pick := fs.Bool("pick", false, "choose the source card from a list of connected external drives")
 	jobs := fs.Int("jobs", 0, "parallel workers for checksum/proxy (default: NumCPU/2)")
 	appendMode := fs.Bool("append", false, "add new footage to an existing manifest")
@@ -59,7 +60,13 @@ func runIngest(args []string) error {
 	// Copy (don't move) when the source is a removable card, so it's safe to
 	// eject right after — unless the user forced --move. Explicit --copy also wins.
 	copyFiles := *copyMode || (drives.IsRemovable(dumpDir) && !*moveMode)
-	if copyFiles && !*copyMode && !*moveMode {
+	if *clearSource {
+		copyFiles = true // clearing the card is a verified copy-then-delete
+	}
+	switch {
+	case *clearSource:
+		fmt.Printf("copying, then emptying the card (sources deleted only after their copy verifies)\n")
+	case copyFiles && !*copyMode && !*moveMode:
 		fmt.Printf("source looks removable — copying (card stays intact, safe to eject)\n")
 	}
 
@@ -75,12 +82,13 @@ func runIngest(args []string) error {
 	defer stop()
 
 	sum, err := ingest.Run(ctx, ingest.Options{
-		DumpDir:    dumpDir,
-		ProjectDir: *project,
-		CamCode:    camCode,
-		Copy:       copyFiles,
-		Jobs:       *jobs,
-		Append:     *appendMode,
+		DumpDir:     dumpDir,
+		ProjectDir:  *project,
+		CamCode:     camCode,
+		Copy:        copyFiles,
+		ClearSource: *clearSource,
+		Jobs:        *jobs,
+		Append:      *appendMode,
 	})
 	if sum != nil {
 		printIngestSummary(sum)
@@ -97,6 +105,12 @@ func printIngestSummary(s *ingest.Summary) {
 		s.NewClips, s.AdoptedProxies, s.GeneratedProxies, s.FailedProxies)
 	if s.SkippedExisting > 0 {
 		fmt.Printf("  skipped %d already-ingested clip(s) (--append dedupe)\n", s.SkippedExisting)
+	}
+	if s.SourceCleared > 0 {
+		fmt.Printf("  cleared %d source file(s) from the card\n", s.SourceCleared)
+	}
+	for _, k := range s.SourceKept {
+		fmt.Fprintf(os.Stderr, "warn: kept on card (copy didn't verify): %s\n", k)
 	}
 	if s.TotalBytes > 0 {
 		fmt.Printf("  %.2f GiB of originals in %s\n", float64(s.TotalBytes)/(1<<30), s.Elapsed.Round(1e6))

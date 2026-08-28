@@ -47,12 +47,13 @@ func (r *Result) Text() string { return strings.Join(r.Lines, "\n") }
 // (defaulted on for removable cards by the caller). It streams nothing here —
 // the caller emits the returned lines — but a Ctrl-C-style interruption is
 // reported as a normal line, not an error.
-func Ingest(projectDir, source, camCode string, copy bool) (*Result, error) {
+func Ingest(projectDir, source, camCode string, copy, clearSource bool) (*Result, error) {
 	sum, err := ingest.Run(context.Background(), ingest.Options{
-		DumpDir:    source,
-		ProjectDir: projectDir,
-		CamCode:    camCode,
-		Copy:       copy,
+		DumpDir:     source,
+		ProjectDir:  projectDir,
+		CamCode:     camCode,
+		Copy:        copy,
+		ClearSource: clearSource,
 	})
 	r := &Result{}
 	if sum != nil {
@@ -60,6 +61,12 @@ func Ingest(projectDir, source, camCode string, copy bool) (*Result, error) {
 			sum.NewClips, sum.AdoptedProxies, sum.GeneratedProxies, sum.FailedProxies)
 		if sum.SkippedExisting > 0 {
 			r.add("  skipped %d already-ingested clip(s)", sum.SkippedExisting)
+		}
+		if sum.SourceCleared > 0 {
+			r.add("  cleared %d source file(s) from the card", sum.SourceCleared)
+		}
+		for _, k := range sum.SourceKept {
+			r.add("  kept on card (copy didn't verify): %s", filepath.Base(k))
 		}
 		for _, u := range sum.UnmatchedSidecars {
 			r.add("  unmatched sidecar: %s", filepath.Base(u))
