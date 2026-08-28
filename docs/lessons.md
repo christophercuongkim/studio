@@ -404,6 +404,57 @@ when a destructive check "passes" suspiciously, confirm the mutation landed.
 
 ---
 
+## CHR-20 — vendoring the SeaKim design system
+
+**`go:embed` can only pull files at/below the embedding package — the vendor
+location is dictated by that, not by the `third_party/` convention.**
+_Why:_ The natural home is `third_party/seakim/`, but `internal/webui` can't
+embed `../../third_party`.
+_How to apply:_ Vendor under `internal/webui/seakim/`; list only the runtime
+patterns (`styles.css`, `tokens/*.css`, `fonts/*.woff2`) in the go:embed
+directive so the ADRs/specs/checker sit alongside un-embedded.
+
+**Trust the design system's `VERSION` file, not its prose.**
+_Why:_ `conformance.md` still said "rules 4.1 / SeaKim 1.0"; the authoritative
+version was `4.3.0`. Declaring 4.1 would have understated the rules reviewed
+against.
+_How to apply:_ Pin `seakim_rules` to `VERSION`; note the stale prose so a
+re-sync doesn't re-copy it as truth.
+
+**A consuming app owes Tier 0 (identity), not the binding's component
+inventory.**
+_Why:_ It's tempting to think "conform" means shipping the mandatory 14
+components. Per ADR 0010 that's a *binding* obligation; a consumer just builds
+its own screens from the tokens and meets the identity rules.
+_How to apply:_ Target Tier 0, run the checker, do the manual review; skip the
+inventory.
+
+**Adapt CDN-delivered pieces locally and document them; that's sanctioned, not a
+rule-break.**
+_Why:_ The token CSS `@import`ed Google Fonts — impossible under studio's no-CDN
+invariant. Delivery is explicitly platform-adaptable (Tier 1).
+_How to apply:_ Self-host the OFL woff2 via `@font-face`, bind a per-app accent
+in `apps.css`, and list every edit to vendored files in `VENDORED.md` so a
+re-sync re-applies them deliberately.
+
+**Token-only styling makes both themes free — and forces you to token even the
+"obviously black" surfaces.**
+_Why:_ Semantic tokens (no hex, no raw ramps) mean light/dark follow
+automatically; but the media stage and prompter blackout wanted literal black,
+which the checker forbids.
+_How to apply:_ Use `--surface-sunken` / `--bg-base` for dark stages (they track
+the theme); if a surface must be single-theme (a camera-facing prompter),
+default the theme and document it rather than hardcoding a colour.
+
+**Wire the vendored conformance checker into `go test`.**
+_Why:_ ADR 0012 — checks ship with the rules and the consumer runs them; a
+vendored checker nobody runs is decoration.
+_How to apply:_ A Go test shells out to `node conformance-check.mjs` over the
+frontends, skipping when node is absent; add node to the devShell so it runs
+under `nix develop`.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
