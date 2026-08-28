@@ -161,6 +161,63 @@ func requireBinaries(t *testing.T, names ...string) {
 	}
 }
 
+// TestRunClearSource verifies that --copy --clear-source empties the card after
+// a verified copy: kept originals and their sidecars leave the dump, the project
+// keeps its copies, and a probe-failed source is never deleted (stays on the
+// card for manual recovery).
+func TestRunClearSource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in -short mode")
+	}
+	requireBinaries(t, "ffmpeg", "ffprobe")
+
+	dump := t.TempDir()
+	proj := t.TempDir()
+	ctx := context.Background()
+
+	genVideo(t, filepath.Join(dump, "DJI_0001.MP4"), "libx265", true, "mp4")
+	genVideo(t, filepath.Join(dump, "DJI_0001.LRF"), "libx264", true, "mp4")
+	os.WriteFile(filepath.Join(dump, "DJI_0001.SRT"), []byte("1\n00:00:00,000 --> 00:00:01,000\nhi\n"), 0o644)
+	genVideo(t, filepath.Join(dump, "solo.MOV"), "libx264", true, "mov")
+	// Probe-failed source must survive — the card keeps it.
+	os.WriteFile(filepath.Join(dump, "corrupt.MP4"), []byte("not a real mp4 file at all"), 0o644)
+
+	sum, err := Run(ctx, Options{DumpDir: dump, ProjectDir: proj, CamCode: "DJI", Jobs: 4, Copy: true, ClearSource: true})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if sum.SourceCleared == 0 {
+		t.Fatal("SourceCleared = 0, want the copied originals + sidecar cleared")
+	}
+	if len(sum.SourceKept) != 0 {
+		t.Errorf("SourceKept = %v, want none (all copies verified)", sum.SourceKept)
+	}
+
+	// Every copied source is gone from the dump.
+	for _, name := range []string{"DJI_0001.MP4", "DJI_0001.LRF", "DJI_0001.SRT", "solo.MOV"} {
+		if _, err := os.Stat(filepath.Join(dump, name)); !os.IsNotExist(err) {
+			t.Errorf("%s should be cleared from the card, stat err = %v", name, err)
+		}
+	}
+	// Probe-failed source stays put — never deleted.
+	if _, err := os.Stat(filepath.Join(dump, "corrupt.MP4")); err != nil {
+		t.Errorf("corrupt.MP4 must remain on the card: %v", err)
+	}
+	// The project keeps its copies.
+	man, err := manifest.Load(proj)
+	if err != nil {
+		t.Fatalf("Load manifest: %v", err)
+	}
+	if len(man.Clips) != 2 {
+		t.Fatalf("manifest has %d clips, want 2", len(man.Clips))
+	}
+	for _, c := range man.Clips {
+		if _, err := os.Stat(filepath.Join(proj, c.Files.Original)); err != nil {
+			t.Errorf("project copy missing for %s: %v", c.ID, err)
+		}
+	}
+}
+
 // genVideo writes a ~1s clip at path using the given video codec, optionally
 // with an audio track. format forces the muxer for extensions ffmpeg can't
 // infer (.LRF/.LRV).
