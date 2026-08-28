@@ -25,6 +25,8 @@ func writeProject(t *testing.T, root, name string, withClips bool) string {
 		t.Fatal(err)
 	}
 	if withClips {
+		os.MkdirAll(filepath.Join(dir, "originals"), 0o755)
+		os.WriteFile(filepath.Join(dir, "originals", "a.mp4"), []byte("x"), 0o644)
 		man := &manifest.Manifest{
 			SchemaVersion: manifest.SchemaVersion,
 			Shoot:         manifest.Shoot{Root: dir, Title: name, CamCode: "DJI"},
@@ -78,6 +80,42 @@ func TestProjectsList(t *testing.T) {
 	}
 	if byTitle["2026-08-02_b"] != "scaffold" {
 		t.Errorf("applied project next = %q, want scaffold", byTitle["2026-08-02_b"])
+	}
+}
+
+func TestReviewMount(t *testing.T) {
+	root := t.TempDir()
+	dir := writeProject(t, root, "2026-08-02_b", true)
+	ts := newTS(t, root)
+	id := encodeID(dir)
+
+	// The review API is mounted under the project prefix and returns the same
+	// manifest the standalone serve UI would.
+	res, err := http.Get(ts.URL + "/projects/" + id + "/review/api/manifest")
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("review manifest: err=%v status=%v", err, res.StatusCode)
+	}
+	var man struct {
+		Clips []struct {
+			ID string `json:"id"`
+		} `json:"clips"`
+	}
+	json.NewDecoder(res.Body).Decode(&man)
+	if len(man.Clips) != 1 || man.Clips[0].ID != "c-001" {
+		t.Fatalf("review manifest clips = %+v, want the one seeded clip", man.Clips)
+	}
+
+	// The review room itself serves the embedded serve frontend.
+	res2, _ := http.Get(ts.URL + "/projects/" + id + "/review/")
+	body, _ := io.ReadAll(res2.Body)
+	if res2.StatusCode != 200 || !strings.Contains(string(body), "cliplist") {
+		t.Fatalf("review root status=%d, body missing review UI", res2.StatusCode)
+	}
+
+	// An unknown project id is rejected, not mounted.
+	res3, _ := http.Get(ts.URL + "/projects/" + encodeID(filepath.Join(root, "nope")) + "/review/api/manifest")
+	if res3.StatusCode != 404 {
+		t.Errorf("unknown review mount status = %d, want 404", res3.StatusCode)
 	}
 }
 

@@ -35,6 +35,7 @@ func runDashboard(args []string) error {
 	}
 
 	srv := dashboard.New(cfg.SearchRoots)
+	defer srv.Close() // flush any in-progress review edits on shutdown
 	httpSrv := &http.Server{Addr: *addr, Handler: srv.Handler()}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
