@@ -180,13 +180,19 @@ async function ingestForm(id) {
     </label>
     <label>Path <input name="source" placeholder="/run/media/you/CARD" required></label>
     <label class="check"><input type="checkbox" name="copy" checked> Copy (leave the card intact, safe to eject)</label>
+    <label class="check"><input type="checkbox" name="clear"> Empty the card after copying (verified — deletes sources only if the copy checks out)</label>
     <div class="form-actions"><button type="submit" class="btn primary">Ingest</button></div>`;
   form.drive.addEventListener("change", () => {
     if (form.drive.value) form.source.value = form.drive.value;
   });
+  // Clearing the card implies a copy.
+  form.clear.addEventListener("change", () => {
+    if (form.clear.checked) form.copy.checked = true;
+  });
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const copy = form.copy.checked;
+    const clearSource = form.clear.checked;
+    const copy = form.copy.checked || clearSource;
     document.querySelectorAll(".actions .btn").forEach((b) => (b.disabled = true));
     const log = el("runlog");
     log.hidden = false;
@@ -194,7 +200,7 @@ async function ingestForm(id) {
       const res = await fetch(`/api/projects/${id}/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: form.source.value, copy, move: !copy }),
+        body: JSON.stringify({ source: form.source.value, copy, move: !copy, clearSource }),
       });
       const reader = res.body.getReader();
       const dec = new TextDecoder();
