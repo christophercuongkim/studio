@@ -15,6 +15,7 @@ import (
 // Config is the global studio configuration.
 type Config struct {
 	ProjectsRoot     string         `yaml:"projectsRoot"`     // where `studio new` creates projects
+	ExternalRoot     string         `yaml:"externalRoot"`     // preferred root when connected (e.g. an external SSD)
 	SearchRoots      []string       `yaml:"searchRoots"`      // dirs scanned for manifest.json
 	KdenliveTemplate string         `yaml:"kdenliveTemplate"` // default scaffold template
 	CamCode          string         `yaml:"camCode"`          // default camera code
@@ -36,6 +37,10 @@ const defaultYAML = `# studio configuration — https://github.com/christophercu
 # Paths may start with ~ (expanded to your home directory).
 
 projectsRoot: ~/videos            # where 'studio new' creates projects
+externalRoot: ""                  # preferred root when connected, e.g. an external SSD
+                                  # (/run/media/you/SSD/videos); used automatically
+                                  # when its drive is mounted, else falls back to
+                                  # projectsRoot. Override per-project with 'new --root'.
 searchRoots: [~/videos]           # dirs scanned for manifest.json (recursive)
 kdenliveTemplate: ~/videos/templates/empty-25.12.kdenlive
 camCode: DJI                      # default camera code; per-run --cam overrides
@@ -58,6 +63,43 @@ func Default() Config {
 		ArchiveRoot:      "",
 		UploadDefaults:   UploadDefaults{Privacy: "private", CategoryID: "27"},
 	}
+}
+
+// RootSource explains which root ProjectsRootFor chose.
+type RootSource string
+
+const (
+	RootFlag     RootSource = "flag"     // an explicit --root override
+	RootExternal RootSource = "external" // the external SSD root (connected)
+	RootDefault  RootSource = "default"  // the built-in projectsRoot
+)
+
+// ProjectsRootFor decides where a new project should be created:
+//
+//  1. an explicit override (e.g. `new --root /mnt/ssd/videos`), else
+//  2. ExternalRoot when its drive is connected — detected by its parent
+//     directory (the mount point) existing, so a first project on a fresh SSD
+//     still works — else
+//  3. the default ProjectsRoot.
+//
+// The returned root is tilde-expanded. This keeps projects on the SSD when it's
+// plugged in and transparently falls back to internal storage when it isn't.
+func (c Config) ProjectsRootFor(override string) (root string, source RootSource) {
+	if override != "" {
+		home, _ := os.UserHomeDir()
+		return expandTilde(override, home), RootFlag
+	}
+	if c.ExternalRoot != "" && mountExists(c.ExternalRoot) {
+		return c.ExternalRoot, RootExternal
+	}
+	return c.ProjectsRoot, RootDefault
+}
+
+// mountExists reports whether root's parent directory exists — a good proxy for
+// "the external drive is mounted", without needing the root subdir to exist yet.
+func mountExists(root string) bool {
+	_, err := os.Stat(filepath.Dir(root))
+	return err == nil
 }
 
 // Path is the config file location, honoring XDG_CONFIG_HOME.
@@ -126,6 +168,7 @@ func (c *Config) expandPaths() error {
 		return fmt.Errorf("locate home directory: %w", err)
 	}
 	c.ProjectsRoot = expandTilde(c.ProjectsRoot, home)
+	c.ExternalRoot = expandTilde(c.ExternalRoot, home)
 	c.KdenliveTemplate = expandTilde(c.KdenliveTemplate, home)
 	c.ArchiveRoot = expandTilde(c.ArchiveRoot, home)
 	for i, r := range c.SearchRoots {

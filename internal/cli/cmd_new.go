@@ -20,6 +20,7 @@ func runNew(args []string) error {
 	}
 	title := fs.String("title", "", "video title (default: de-slugged form)")
 	date := fs.String("date", "", "shoot date YYYY-MM-DD (default: today)")
+	root := fs.String("root", "", "where to create the project (default: external SSD if connected, else projectsRoot)")
 	rest, err := parseFlags(fs, args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -36,8 +37,10 @@ func runNew(args []string) error {
 		return err
 	}
 
+	projectsRoot, source := cfg.ProjectsRootFor(*root)
+
 	dir, err := project.Create(project.Options{
-		ProjectsRoot: cfg.ProjectsRoot,
+		ProjectsRoot: projectsRoot,
 		Slug:         rest[0],
 		Title:        *title,
 		Date:         *date,
@@ -48,7 +51,12 @@ func runNew(args []string) error {
 		return err
 	}
 
-	fmt.Printf("created %s\n\n", dir)
+	switch source {
+	case config.RootExternal:
+		fmt.Printf("created %s  (external drive)\n\n", dir)
+	default:
+		fmt.Printf("created %s\n\n", dir)
+	}
 	fmt.Println("next steps:")
 	fmt.Println("  script → shoot → ingest → serve → apply → scaffold → edit →")
 	fmt.Println("  chapters → qc → thumbs → upload → archive")

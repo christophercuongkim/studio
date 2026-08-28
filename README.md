@@ -42,6 +42,10 @@ defaults (honors `$XDG_CONFIG_HOME`):
 
 ```yaml
 projectsRoot: ~/videos            # where `studio new` creates projects
+externalRoot: ""                  # preferred root when connected (e.g. an external
+                                  # SSD: /run/media/you/SSD/videos). Used automatically
+                                  # when its drive is mounted, else falls back to
+                                  # projectsRoot. One-off override: `new --root <dir>`.
 searchRoots: [~/videos]           # dirs scanned for manifest.json (recursive)
 kdenliveTemplate: ~/videos/templates/empty-25.12.kdenlive
 camCode: DJI                      # default; per-run --cam overrides
