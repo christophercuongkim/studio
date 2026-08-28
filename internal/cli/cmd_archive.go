@@ -1,13 +1,12 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
 
-	"github.com/christophercuongkim/studio/internal/archive"
 	"github.com/christophercuongkim/studio/internal/config"
+	"github.com/christophercuongkim/studio/internal/steps"
 )
 
 func runArchive(args []string) error {
@@ -37,28 +36,10 @@ func runArchive(args []string) error {
 		return err
 	}
 
-	res, err := archive.Run(context.Background(), archive.Options{
-		ProjectDir:  rest[0],
-		ArchiveRoot: cfg.ArchiveRoot,
-		DryRun:      *dryRun,
-		KeepProxies: *keepProxies,
-		Force:       *force,
-	})
+	res, err := steps.Archive(rest[0], cfg.ArchiveRoot, *dryRun, *keepProxies, *force)
 	if err != nil {
 		return err
 	}
-
-	if res.DryRun {
-		fmt.Printf("dry run: %d originals verified\n", res.Hashed)
-		fmt.Printf("  would rsync → %s\n", res.ArchivePath)
-		for _, p := range res.Pruned {
-			fmt.Printf("  would prune %s/\n", p)
-		}
-		return nil
-	}
-	fmt.Printf("archived %d originals → %s\n", res.Hashed, res.ArchivePath)
-	for _, p := range res.Pruned {
-		fmt.Printf("  pruned %s/\n", p)
-	}
+	fmt.Println(res.Text())
 	return nil
 }
