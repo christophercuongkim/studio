@@ -9,7 +9,66 @@ init();
 async function init() {
   wireTheme();
   el("back").addEventListener("click", showOverview);
+  el("new-project").addEventListener("click", toggleNewForm);
   await loadProjects();
+}
+
+// Cache of external drives (label + path) for the pickers.
+async function getDrives() {
+  try {
+    return (await (await fetch("/api/drives")).json()) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// --- New project form ---
+
+async function toggleNewForm() {
+  const c = el("newform-container");
+  if (c.firstChild) {
+    c.innerHTML = "";
+    return;
+  }
+  const drives = await getDrives();
+  const form = document.createElement("form");
+  form.className = "form";
+  form.innerHTML = `
+    <label>Slug <input name="slug" placeholder="lake-trip" required></label>
+    <label>Title <input name="title" placeholder="A weekend at the lake"></label>
+    <label>Date <input name="date" placeholder="today" pattern="\\d{4}-\\d{2}-\\d{2}"></label>
+    <label>Destination
+      <select name="root">
+        <option value="">Internal (default)</option>
+        ${drives.map((d) => `<option value="${d.path}">${d.label} — ${d.path}</option>`).join("")}
+      </select>
+    </label>
+    <div class="form-actions">
+      <button type="submit" class="btn primary">Create</button>
+      <button type="button" class="btn" data-cancel>Cancel</button>
+    </div>
+    <p class="form-error" hidden></p>`;
+  form.querySelector("[data-cancel]").onclick = () => (el("newform-container").innerHTML = "");
+  const slug = form.slug;
+  slug.addEventListener("input", () => {
+    slug.value = slug.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = form.querySelector(".form-error");
+    err.hidden = true;
+    const body = { slug: form.slug.value, title: form.title.value, date: form.date.value, root: form.root.value };
+    const res = await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      err.textContent = await res.text();
+      err.hidden = false;
+      return;
+    }
+    const { id } = await res.json();
+    el("newform-container").innerHTML = "";
+    showDetail(id);
+  });
+  el("newform-container").appendChild(form);
 }
 
 async function loadProjects() {
@@ -86,6 +145,10 @@ function actions(d) {
   const step = d.next;
   if (!step) return wrap; // complete
 
+  if (step === "ingest") {
+    ingestForm(d.id).then((f) => wrap.appendChild(f));
+    return wrap;
+  }
   if (!RUNNABLE.has(step)) {
     const note = document.createElement("p");
     note.className = "note";
@@ -101,6 +164,52 @@ function actions(d) {
     runStep(d.id, step, false);
   }, "primary"));
   return wrap;
+}
+
+// ingestForm builds the source picker for a project awaiting footage.
+async function ingestForm(id) {
+  const drives = await getDrives();
+  const form = document.createElement("form");
+  form.className = "form ingest";
+  form.innerHTML = `
+    <label>Card / source
+      <select name="drive">
+        <option value="">— pick a drive —</option>
+        ${drives.map((d) => `<option value="${d.path}">${d.label} — ${d.path}</option>`).join("")}
+      </select>
+    </label>
+    <label>Path <input name="source" placeholder="/run/media/you/CARD" required></label>
+    <label class="check"><input type="checkbox" name="copy" checked> Copy (leave the card intact, safe to eject)</label>
+    <div class="form-actions"><button type="submit" class="btn primary">Ingest</button></div>`;
+  form.drive.addEventListener("change", () => {
+    if (form.drive.value) form.source.value = form.drive.value;
+  });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const copy = form.copy.checked;
+    document.querySelectorAll(".actions .btn").forEach((b) => (b.disabled = true));
+    const log = el("runlog");
+    log.hidden = false;
+    try {
+      const res = await fetch(`/api/projects/${id}/ingest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: form.source.value, copy, move: !copy }),
+      });
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        log.textContent += dec.decode(value, { stream: true });
+        log.scrollTop = log.scrollHeight;
+      }
+    } catch (err) {
+      log.textContent += "\n[connection error]\n";
+    }
+    await renderDetail(id); // advances to review once clips land
+  });
+  return form;
 }
 
 function nextNote(step) {

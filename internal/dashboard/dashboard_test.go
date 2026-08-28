@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -256,5 +257,100 @@ func TestRunGuards(t *testing.T) {
 	// Unknown project → 404.
 	if res, _ := http.Post(ts.URL+"/api/projects/"+encodeID("/etc")+"/run/apply", "text/plain", nil); res.StatusCode != 404 {
 		t.Errorf("unknown project run status = %d, want 404", res.StatusCode)
+	}
+}
+
+// tempConfig points config.Load at an isolated config whose projectsRoot is
+// projectsRoot, so create tests don't touch the real ~/.config or ~/Videos.
+func tempConfig(t *testing.T, projectsRoot string) {
+	t.Helper()
+	cfgHome := t.TempDir()
+	os.MkdirAll(filepath.Join(cfgHome, "studio"), 0o755)
+	os.WriteFile(filepath.Join(cfgHome, "studio", "config.yaml"),
+		[]byte("projectsRoot: "+projectsRoot+"\ncamCode: DJI\n"), 0o644)
+	t.Setenv("XDG_CONFIG_HOME", cfgHome)
+}
+
+func TestCreateProject(t *testing.T) {
+	root := t.TempDir()
+	tempConfig(t, root)
+	ts := newTS(t, root)
+
+	res, err := http.Post(ts.URL+"/api/projects", "application/json",
+		strings.NewReader(`{"slug":"lake-trip","title":"Lake","date":"2026-08-01"}`))
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("create: %v status %v", err, res.StatusCode)
+	}
+	var out struct{ ID string }
+	json.NewDecoder(res.Body).Decode(&out)
+	if out.ID == "" {
+		t.Fatal("no id returned")
+	}
+	if _, err := os.Stat(filepath.Join(root, "2026-08-01_lake-trip", "video.yaml")); err != nil {
+		t.Errorf("project not created: %v", err)
+	}
+
+	// Invalid slug → 400.
+	if res, _ := http.Post(ts.URL+"/api/projects", "application/json",
+		strings.NewReader(`{"slug":"Bad Slug"}`)); res.StatusCode != 400 {
+		t.Errorf("bad slug status = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestDrivesEndpoint(t *testing.T) {
+	ts := newTS(t, t.TempDir())
+	res, err := http.Get(ts.URL + "/api/drives")
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("drives: %v status %v", err, res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	// Must be [] (not null) so the client can always .map over it.
+	if !strings.HasPrefix(strings.TrimSpace(string(body)), "[") {
+		t.Errorf("drives should be a JSON array, got %q", body)
+	}
+}
+
+func TestIngestEndpoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skips ffmpeg ingest in -short mode")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not on PATH")
+	}
+	root := t.TempDir()
+	tempConfig(t, root)
+
+	// Create a project, then a card to ingest from.
+	dir := filepath.Join(root, "2026-08-01_c")
+	os.MkdirAll(dir, 0o755)
+	vy := videoyaml.Default("C", "27", "unlisted")
+	videoyaml.Save(dir, &vy)
+
+	card := t.TempDir()
+	gen := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=1",
+		"-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+		"-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
+		"-f", "mp4", filepath.Join(card, "DJI_0001.MP4"))
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("gen: %v\n%s", err, out)
+	}
+
+	ts := newTS(t, root)
+	id := encodeID(dir)
+	res, err := http.Post(ts.URL+"/api/projects/"+id+"/ingest", "application/json",
+		strings.NewReader(`{"source":"`+card+`","copy":true}`))
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("ingest: %v status %v", err, res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "ingested 1 clip") {
+		t.Errorf("ingest output unexpected:\n%s", body)
+	}
+	// Now ingested → next is review.
+	res2, _ := http.Get(ts.URL + "/api/projects/" + id)
+	var d struct{ Next string }
+	json.NewDecoder(res2.Body).Decode(&d)
+	if d.Next != "review" {
+		t.Errorf("after ingest, next = %q, want review", d.Next)
 	}
 }
