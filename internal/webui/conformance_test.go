@@ -14,7 +14,7 @@ func TestSeaKimConformance(t *testing.T) {
 		t.Skip("node not on PATH (design conformance check skipped)")
 	}
 	const checker = "seakim/tool/conformance-check.mjs"
-	for _, dir := range []string{"serve", "prompt"} {
+	for _, dir := range []string{"serve", "prompt", "dashboard"} {
 		out, err := exec.Command("node", checker, dir).CombinedOutput()
 		if err != nil {
 			t.Errorf("SeaKim conformance failed for %s:\n%s", dir, out)

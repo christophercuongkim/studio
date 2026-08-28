@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-app="studio">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>studio — dashboard</title>
+  <script>
+    (function () {
+      try { document.documentElement.setAttribute("data-theme", localStorage.getItem("studio-theme") || "dark"); }
+      catch (e) { document.documentElement.setAttribute("data-theme", "dark"); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/seakim/styles.css">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header id="topbar">
+    <span id="brand">studio</span>
+    <button id="theme-toggle" type="button" aria-label="Toggle light or dark theme">Light</button>
+  </header>
+
+  <main id="main">
+    <section id="overview">
+      <h1 class="view-title">Projects</h1>
+      <div id="cards"></div>
+      <p id="empty" hidden>No projects found under your search roots.</p>
+    </section>
+
+    <section id="detail" hidden>
+      <button id="back" type="button">← Projects</button>
+      <h1 id="detail-title" class="view-title"></h1>
+      <div id="detail-body"></div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
