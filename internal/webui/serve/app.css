@@ -1,0 +1,83 @@
+:root {
+  --bg: #14161a;
+  --panel: #1c1f26;
+  --line: #2a2f3a;
+  --text: #e6e9ef;
+  --muted: #8b93a3;
+  --accent: #5aa0ff;
+  --kept: #4ccf7a;
+  --rejected: #ff6b6b;
+  --star: #ffd35a;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+#app { display: flex; height: 100vh; }
+
+/* Sidebar */
+#sidebar {
+  width: 320px;
+  min-width: 260px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+#shoot { padding: 12px 14px; border-bottom: 1px solid var(--line); font-weight: 600; }
+#cliplist { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+#cliplist li {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1.2em 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+#cliplist li.active { background: #232833; }
+#cliplist li .glyph { text-align: center; }
+#cliplist li.kept .glyph { color: var(--kept); }
+#cliplist li.rejected .glyph { color: var(--rejected); }
+#cliplist li .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cliplist li .dur { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+#cliplist li .stars { grid-column: 2 / 4; color: var(--star); font-size: 12px; letter-spacing: 1px; }
+#progress { padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Stage */
+#stage { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 12px; min-width: 0; }
+#viewer { flex: 1; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#video { max-width: 100%; max-height: 100%; }
+#noproxy { color: var(--muted); }
+#meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+#nameform .row { display: flex; gap: 16px; }
+#nameform label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+#nameform input {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+#desc { width: 360px; }
+#take { width: 90px; }
+#preview { font-family: ui-monospace, monospace; color: var(--accent); min-height: 1.2em; }
+.hint { color: var(--muted); font-size: 12px; }
+
+#toast {
+  position: fixed;
+  bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--rejected);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
