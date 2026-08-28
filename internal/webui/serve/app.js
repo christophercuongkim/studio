@@ -16,14 +16,31 @@ async function init() {
     const res = await fetch("/api/manifest");
     state.man = await res.json();
     state.cam = state.man.shoot.camCode || "CAM";
-    el("shoot").textContent = state.man.shoot.title || "review";
+    el("shoot-title").textContent = state.man.shoot.title || "review";
   } catch (e) {
     return toast("failed to load manifest");
   }
   renderList();
   if (state.man.clips.length) select(0);
   wireForm();
+  wireTheme();
   document.addEventListener("keydown", onKey);
+}
+
+// Theme toggle: flip data-theme on <html>, persist, label the *other* theme.
+function wireTheme() {
+  const btn = el("theme-toggle");
+  const sync = () => {
+    const dark = document.documentElement.getAttribute("data-theme") !== "light";
+    btn.textContent = dark ? "Light" : "Dark";
+  };
+  sync();
+  btn.addEventListener("click", () => {
+    const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("studio-theme", next); } catch (e) {}
+    sync();
+  });
 }
 
 // --- rendering ---
@@ -36,12 +53,6 @@ function fmtDur(s) {
   s = Math.round(s || 0);
   const m = Math.floor(s / 60);
   return `${m}:${pad(s % 60, 2)}`;
-}
-
-function glyph(c) {
-  if (c.review.status === "kept") return "✓";
-  if (c.review.status === "rejected") return "✗";
-  return "·";
 }
 
 function finalName(c) {
@@ -60,7 +71,7 @@ function renderList() {
     li.className = c.review.status + (idx === state.i ? " active" : "");
     const stars = "★".repeat(c.review.rating) + "☆".repeat(5 - c.review.rating);
     li.innerHTML =
-      `<span class="glyph">${glyph(c)}</span>` +
+      `<span class="dot"></span>` +
       `<span class="name">${c.review.desc || c.stem}</span>` +
       `<span class="dur">${fmtDur(c.media.durationSec)}</span>` +
       `<span class="stars">${stars}</span>`;
