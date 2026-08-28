@@ -1,0 +1,17 @@
+# Go build output
+/studio
+/dist/
+*.test
+*.out
+
+# Nix
+/result
+/result-*
+
+# direnv
+/.direnv/
+
+# Editor / OS cruft
+*.swp
+*~
+.DS_Store
