@@ -251,6 +251,31 @@ _How to apply:_ Parse the period to the first moment *after* it and test
 
 ---
 
+## CHR-13 — chapters
+
+**Kdenlive stores timeline guides in `kdenlive:sequenceproperties.guides` as a
+JSON array of `{pos (frames), comment, type, duration}`.**
+_Why:_ Pinned so a future format change is caught, not silently swallowed.
+_How to apply:_ Constants in `internal/kdenlive/guides.go` with a dated
+"verified against real files" comment; `Guides()` errors (dumping the raw value)
+if the JSON doesn't parse. Frame→sec uses `<profile>` frame_rate_num/den, whose
+attribute order varies between files — read them by name, not position.
+
+**The last chapter's length is unknowable from guides alone.**
+_Why:_ The ≥10s rule needs each chapter's duration, but the final one runs to
+the end of the render, which the .kdenlive doesn't state.
+_How to apply:_ Check the gap to the *next* start; leave the last chapter
+unchecked (plan accepts this).
+
+**A sentinel-delimited managed block must require both sentinels before
+replacing.**
+_Why:_ A description with only a start sentinel (hand-mangled) would otherwise
+compute a bad range.
+_How to apply:_ Replace only when `end > start`; otherwise append a fresh block.
+Keeps text outside the sentinels byte-stable.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
