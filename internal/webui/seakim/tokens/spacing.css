@@ -1,0 +1,43 @@
+/* ============================================================
+   SeaKim — space & size. 4px grid.
+   Density 7/10: controls are compact (34px default), section gaps are not.
+   ============================================================ */
+
+:root {
+  --space-0:  0px;
+  --space-1:  2px;
+  --space-2:  4px;
+  --space-3:  8px;
+  --space-4:  12px;
+  --space-5:  16px;
+  --space-6:  20px;
+  --space-7:  24px;
+  --space-8:  32px;
+  --space-9:  40px;
+  --space-10: 48px;
+  --space-11: 64px;
+  --space-12: 80px;
+
+  /* Control heights */
+  --control-h-sm:    28px;
+  --control-h-md:    34px;   /* default */
+  --control-h-lg:    42px;
+  --control-h-touch: 44px;   /* mobile minimum — non-negotiable */
+
+  /* Standard insets */
+  --pad-card:    var(--space-5);
+  --pad-section: var(--space-8);
+  --pad-control: var(--space-4);
+
+  /* Overlay widths. Only the dialog is shared across bindings — the Flutter side
+     mirrors it as SkChrome.overlayDialogW, and tool/conformance-check.mjs holds the
+     two equal. The sheet width is not here: the sheet is not a promoted component
+     yet (conformance.md item 8). */
+  --overlay-w-dialog: 440px;
+
+  /* How far each avatar in an AvatarStack slides under the one beside it — a
+     fixed fraction of the small-avatar diameter, held as one shared constant so
+     every facepile overlaps the same amount (decision 0024). Mirrored in Flutter
+     as SkSpace.avatarOverlap. */
+  --avatar-overlap: 8px;
+}

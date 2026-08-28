@@ -1,0 +1,31 @@
+:root {
+  /* Breakpoints. Screens branch on measured CONTAINER width, not viewport, so
+     these are documented here and read by ui_kits/shared/Frames.jsx rather than
+     used in media queries. sm < 640 · md 640–1023 · lg >= 1024 */
+  --bp-md: 640px;
+  --bp-lg: 1024px;
+
+  --container-sm: 640px;
+  --container-md: 840px;
+  --container-lg: 1120px;
+  --container-xl: 1360px;
+
+  --sidebar-w: 232px;
+  --sidebar-w-collapsed: 56px;
+  --topbar-h: 52px;
+  --subbar-h: 44px;
+  --tabbar-h: 56px;      /* mobile bottom tabs */
+  --statusbar-h: 44px;   /* mobile status bar */
+  --touch-min: 44px;
+
+  --slide-w: 1280px;
+  --slide-h: 720px;
+
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+  --z-tooltip: 500;
+}

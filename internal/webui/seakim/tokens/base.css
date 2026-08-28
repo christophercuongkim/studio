@@ -1,0 +1,38 @@
+/* ============================================================
+   SeaKim — base reset. Imported last.
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: var(--type-body);
+  letter-spacing: var(--tracking-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
+}
+p { margin: 0; text-wrap: pretty; }
+
+a { color: var(--text-link); text-decoration: none; transition: color var(--dur-instant) var(--ease-out); }
+a:hover { color: var(--text-link-hover); text-decoration: underline; text-underline-offset: 2px; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+::selection { background: var(--fill-accent); color: var(--on-accent); }
+
+hr { border: none; border-top: 1px solid var(--border-subtle); margin: 0; }
+
+code, kbd, samp { font-family: var(--font-mono); font-size: 0.92em; }

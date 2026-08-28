@@ -54,6 +54,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/clips/{id}", s.handlePatch)
 	mux.HandleFunc("GET /api/preview-name/{id}", s.handlePreviewName)
 	mux.HandleFunc("GET /media/proxy/{id}", s.handleProxy)
+	// Vendored SeaKim design system (tokens + fonts), shared by both UIs.
+	mux.Handle("GET /seakim/", http.StripPrefix("/seakim/", http.FileServer(http.FS(webui.SeakimFS()))))
 	// Everything else is the embedded frontend (index.html, app.js, app.css).
 	mux.Handle("GET /", http.FileServer(http.FS(webui.ServeFS())))
 	return mux
