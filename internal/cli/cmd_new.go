@@ -4,9 +4,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/christophercuongkim/studio/internal/config"
+	"github.com/christophercuongkim/studio/internal/drives"
 	"github.com/christophercuongkim/studio/internal/project"
 )
 
@@ -21,6 +23,7 @@ func runNew(args []string) error {
 	title := fs.String("title", "", "video title (default: de-slugged form)")
 	date := fs.String("date", "", "shoot date YYYY-MM-DD (default: today)")
 	root := fs.String("root", "", "where to create the project (default: external SSD if connected, else projectsRoot)")
+	pick := fs.Bool("pick", false, "choose the destination from a list of connected external drives")
 	rest, err := parseFlags(fs, args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -35,6 +38,14 @@ func runNew(args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+
+	if *pick {
+		d, err := drives.Prompt(os.Stdout, os.Stdin, drives.External())
+		if err != nil {
+			return err
+		}
+		*root = d.Path // the chosen drive becomes the projects root
 	}
 
 	projectsRoot, source := cfg.ProjectsRootFor(*root)

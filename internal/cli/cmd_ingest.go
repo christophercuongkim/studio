@@ -9,6 +9,7 @@ import (
 	"os/signal"
 
 	"github.com/christophercuongkim/studio/internal/config"
+	"github.com/christophercuongkim/studio/internal/drives"
 	"github.com/christophercuongkim/studio/internal/ingest"
 )
 
@@ -23,6 +24,8 @@ func runIngest(args []string) error {
 	project := fs.String("project", "", "project folder to populate (required)")
 	cam := fs.String("cam", "", "camera code for the shoot (default: config camCode)")
 	copyMode := fs.Bool("copy", false, "copy files instead of moving; leaves the dump untouched")
+	moveMode := fs.Bool("move", false, "force move even from a removable card (overrides the safe default)")
+	pick := fs.Bool("pick", false, "choose the source card from a list of connected external drives")
 	jobs := fs.Int("jobs", 0, "parallel workers for checksum/proxy (default: NumCPU/2)")
 	appendMode := fs.Bool("append", false, "add new footage to an existing manifest")
 	rest, err := parseFlags(fs, args)
@@ -32,11 +35,32 @@ func runIngest(args []string) error {
 		}
 		return err
 	}
-	if len(rest) != 1 {
-		return fmt.Errorf("expected exactly one <dump-dir> argument, got %d; see 'studio ingest --help'", len(rest))
+	// The source is either a picked drive or the positional <dump-dir>.
+	var dumpDir string
+	switch {
+	case *pick:
+		d, err := drives.Prompt(os.Stdout, os.Stdin, drives.External())
+		if err != nil {
+			return err
+		}
+		dumpDir = d.Path
+		if len(rest) > 0 {
+			return errors.New("give a <dump-dir> or --pick, not both")
+		}
+	case len(rest) == 1:
+		dumpDir = rest[0]
+	default:
+		return fmt.Errorf("expected one <dump-dir> argument (or --pick), got %d; see 'studio ingest --help'", len(rest))
 	}
 	if *project == "" {
 		return errors.New("--project is required")
+	}
+
+	// Copy (don't move) when the source is a removable card, so it's safe to
+	// eject right after — unless the user forced --move. Explicit --copy also wins.
+	copyFiles := *copyMode || (drives.IsRemovable(dumpDir) && !*moveMode)
+	if copyFiles && !*copyMode && !*moveMode {
+		fmt.Printf("source looks removable — copying (card stays intact, safe to eject)\n")
 	}
 
 	camCode := *cam
@@ -51,10 +75,10 @@ func runIngest(args []string) error {
 	defer stop()
 
 	sum, err := ingest.Run(ctx, ingest.Options{
-		DumpDir:    rest[0],
+		DumpDir:    dumpDir,
 		ProjectDir: *project,
 		CamCode:    camCode,
-		Copy:       *copyMode,
+		Copy:       copyFiles,
 		Jobs:       *jobs,
 		Append:     *appendMode,
 	})
