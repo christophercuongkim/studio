@@ -145,6 +145,39 @@ scripts, or check the manifest directly instead of gating on the kill.
 
 ---
 
+## CHR-9 — apply + undo
+
+**After a partial apply failure the manifest is intentionally path-inconsistent,
+so undo must load it schema-only.**
+_Why:_ apply renames files but only saves the manifest after *all* renames
+succeed; a mid-run failure leaves originals renamed on disk while the manifest
+still points at the old paths. `manifest.Load` (which validates paths) then
+rejects it — and undo is exactly the tool meant to run in that state.
+_How to apply:_ `undo` uses `manifest.LoadFile` (schema-only). Don't "fix" it to
+`Load`; that reintroduces the bug. Found only because a test asserted the
+post-failure state.
+
+**Journal the intent (write + fsync) before each rename, and commit the manifest
+only after the whole plan succeeds.**
+_Why:_ A crash between "renamed on disk" and "recorded in manifest" must be
+recoverable; the journal is the source of truth for undo, not the manifest.
+_How to apply:_ Per file: encode the rename line, `Sync()`, then `os.Rename`.
+Update+save the manifest once, at the end. Never save a half-applied manifest.
+
+**Duplicate-final-name detection must include already-applied clips, not just
+the current batch.**
+_Why:_ A new kept clip can collide with a name already on disk from an earlier
+apply, which a peers-only check misses.
+_How to apply:_ Seed the claimed-names set from every `applied.finalStem` before
+checking the batch.
+
+**Undo skips vanished targets instead of failing.**
+_Why:_ Makes undo converge whether the journal was fully or partially applied,
+and re-running after a successful undo is harmless.
+_How to apply:_ `Stat` the target; if gone, warn and continue rather than error.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
