@@ -8,7 +8,7 @@ package cli
 // into the corresponding entry (e.g. Run: ingest.Command().Run) so the surface
 // grows without touching the dispatcher.
 var commands = []*Command{
-	{Name: "new", Usage: "<slug>", Summary: "Create a new project folder and skeletons"},
+	{Name: "new", Usage: "<slug>", Summary: "Create a new project folder and skeletons", Run: runNew},
 	{Name: "ingest", Usage: "<dump-dir> --project <dir>", Summary: "Import a card dump into the project layout", Run: runIngest},
 	{Name: "serve", Usage: "<project>", Summary: "Review UI: rate, name, keep/reject clips", Run: runServe},
 	{Name: "apply", Usage: "<project>", Summary: "Rename kept clips to their final names", Run: runApply},
