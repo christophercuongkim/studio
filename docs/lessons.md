@@ -228,6 +228,29 @@ _How to apply:_ Business logic takes `now time.Time`; only the CLI passes
 
 ---
 
+## CHR-12 — search
+
+**Resolve clip paths against the manifest's own directory, not its stored
+`shoot.root`.**
+_Why:_ `shoot.root` is an absolute path captured at ingest; if the project
+folder is later moved, it's stale. The directory the manifest was just found in
+is always correct.
+_How to apply:_ `filepath.Join(filepath.Dir(manifestPath), files.original)`. Pair
+with the schema-only loader so a moved tree doesn't fail path validation.
+
+**A "disabled" numeric filter needs a sentinel, not the zero value.**
+_Why:_ `Filters{}` has `MaxDur == 0`, which as an upper bound rejects every
+clip. Silent and total.
+_How to apply:_ `NewFilters()` sets duration bounds to -1 (off); Match treats
+`>= 0` as active. Never construct the struct literal directly.
+
+**Model an inclusive `--until <period>` as an exclusive end instant.**
+_Why:_ "until 2026-07" should include all of July regardless of time-of-day.
+_How to apply:_ Parse the period to the first moment *after* it and test
+`!createdAt.Before(end)`; avoids fencepost bugs from end-of-month math.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
