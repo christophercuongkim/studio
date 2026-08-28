@@ -473,6 +473,34 @@ authorization.
 
 ---
 
+## CHR-23 — dashboard slice 2 (run steps)
+
+**Extract each action into a shared package so "no dashboard-only behavior" is
+structural, not a promise.**
+_Why:_ The dashboard and the CLI must run identical logic; duplicating
+orchestration guarantees drift.
+_How to apply:_ `internal/steps` holds the per-step runners returning line
+output; the CLI commands became thin flag-parsers over them, and the dashboard
+calls the same functions. CLI output is unchanged because steps emits the same
+lines the commands used to print.
+
+**A domain "failure" isn't an HTTP error — carry it as data.**
+_Why:_ A qc check failing should exit the CLI non-zero but return HTTP 200 with
+the table in the browser.
+_How to apply:_ `steps.Result.Failed` conveys qc's outcome; the CLI turns it
+into an error, the dashboard just shows it. Reserve `error` for operational
+failures (missing render, ffmpeg died).
+
+**Keep the streamed log outside the re-rendered region.**
+_Why:_ A real run advances the checklist, which re-renders the detail top — if
+the log lived there it'd be wiped mid-watch.
+_How to apply:_ `#runlog` is a sibling of the re-rendered `#detail-top`;
+appending to it and re-rendering the checklist are independent. Chunked
+plain-text (flush per line) is enough streaming for few-second steps; SSE/finer
+progress can come later.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
