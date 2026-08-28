@@ -114,6 +114,7 @@ func TestApplyThenUndoRestoresByteIdentical(t *testing.T) {
 		func() manifest.Clip {
 			c := keptClip("c-003", 3, "skip", true, false)
 			c.Review.Status = manifest.StatusRejected
+			c.Review.Desc = "" // rejected with no desc → left untouched
 			return c
 		}(),
 	})
@@ -265,4 +266,65 @@ func keys(m map[string]string) []string {
 	}
 	sort.Strings(ks)
 	return ks
+}
+
+func TestApplyRoutesRejectedWithDescToNotUsing(t *testing.T) {
+	dir := buildProj(t, []manifest.Clip{
+		keptClip("c-001", 1, "keeper", true, false),
+		func() manifest.Clip { // rejected but named → not_using/
+			c := keptClip("c-002", 2, "blurry-take", true, true)
+			c.Review.Status = manifest.StatusRejected
+			return c
+		}(),
+		func() manifest.Clip { // rejected, no desc → untouched
+			c := keptClip("c-003", 3, "x", false, false)
+			c.Review.Status = manifest.StatusRejected
+			c.Review.Desc = ""
+			return c
+		}(),
+	})
+	before := snapshot(t, dir)
+
+	man, _ := manifest.Load(dir)
+	plan, err := Build(man, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Execute(man, dir, plan, testCreated); err != nil {
+		t.Fatal(err)
+	}
+
+	// Keeper renamed in place.
+	if _, err := os.Stat(filepath.Join(dir, "originals/20260827_DJI001_keeper.MP4")); err != nil {
+		t.Error("kept clip not renamed in place")
+	}
+	// Rejected-but-named clip: renamed AND moved into not_using/ (original, proxy, sidecar).
+	for _, p := range []string{
+		"not_using/20260827_DJI002_blurry-take.MP4",
+		"not_using/20260827_DJI002_blurry-take.mp4",
+		"not_using/20260827_DJI002_blurry-take.SRT",
+	} {
+		if _, err := os.Stat(filepath.Join(dir, p)); err != nil {
+			t.Errorf("expected %s in not_using/: %v", p, err)
+		}
+	}
+	// Rejected with no desc: left where it was.
+	if _, err := os.Stat(filepath.Join(dir, "originals/RAW_c-003.MP4")); err != nil {
+		t.Error("rejected, undescribed clip should be untouched")
+	}
+
+	// Manifest records the not_using clip as applied with its final stem.
+	reMan, _ := manifest.Load(dir)
+	if c := reMan.ClipByID("c-002"); !c.Applied.Done || c.Files.Original != "not_using/20260827_DJI002_blurry-take.MP4" {
+		t.Errorf("c-002 applied/path wrong: %+v", c.Applied)
+	}
+
+	// Undo restores the byte-identical tree.
+	logPath, _ := LatestLog(dir)
+	if _, err := Undo(dir, logPath); err != nil {
+		t.Fatal(err)
+	}
+	if !equalMaps(before, snapshot(t, dir)) {
+		t.Error("undo did not restore the tree after not_using routing")
+	}
 }
