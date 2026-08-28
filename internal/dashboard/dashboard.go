@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/christophercuongkim/studio/internal/manifest"
 	"github.com/christophercuongkim/studio/internal/pipeline"
+	"github.com/christophercuongkim/studio/internal/server"
 	"github.com/christophercuongkim/studio/internal/videoyaml"
 	"github.com/christophercuongkim/studio/internal/webui"
 )
@@ -20,11 +22,30 @@ import (
 // Server serves the dashboard over the given search roots.
 type Server struct {
 	roots []string
+
+	// reviews caches one review Server per project (keyed by dir) so the review
+	// room reuses internal/server's stateful, debounced manifest exactly as
+	// `studio serve` does — no duplicated review logic.
+	reviewMu sync.Mutex
+	reviews  map[string]*server.Server
 }
 
 // New builds a dashboard server scanning the given search roots for projects.
 func New(roots []string) *Server {
-	return &Server{roots: roots}
+	return &Server{roots: roots, reviews: map[string]*server.Server{}}
+}
+
+// Close flushes every open review server's pending manifest edits.
+func (s *Server) Close() error {
+	s.reviewMu.Lock()
+	defer s.reviewMu.Unlock()
+	var firstErr error
+	for _, rs := range s.reviews {
+		if err := rs.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // Handler returns the HTTP routes (localhost only — the CLI binds 127.0.0.1).
@@ -36,6 +57,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/projects/{id}", s.handleDetail)
 	mux.HandleFunc("POST /api/projects/{id}/run/{step}", s.handleRun)
 	mux.HandleFunc("POST /api/projects/{id}/ingest", s.handleIngest)
+	// The review room: the full serve UI + its API/media, mounted per project.
+	// Registered per method (GET assets/manifest/proxy, PATCH clip edits) so it
+	// doesn't collide with the catch-all "GET /" frontend route.
+	mux.HandleFunc("GET /projects/{id}/review/", s.handleReview)
+	mux.HandleFunc("PATCH /projects/{id}/review/", s.handleReview)
 	mux.Handle("GET /seakim/", http.StripPrefix("/seakim/", http.FileServer(http.FS(webui.SeakimFS()))))
 	mux.Handle("GET /", http.FileServer(http.FS(webui.DashboardFS())))
 	return mux
