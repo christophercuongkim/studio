@@ -13,7 +13,7 @@ init();
 
 async function init() {
   try {
-    const res = await fetch("/api/manifest");
+    const res = await fetch("api/manifest");
     state.man = await res.json();
     state.cam = state.man.shoot.camCode || "CAM";
     el("shoot-title").textContent = state.man.shoot.title || "review";
@@ -100,7 +100,7 @@ function select(idx) {
   video.hidden = !hasProxy;
   el("noproxy").hidden = hasProxy;
   if (hasProxy) {
-    video.src = `/media/proxy/${c.id}`;
+    video.src = `media/proxy/${c.id}`;
     video.play().catch(() => {});
   } else {
     video.removeAttribute("src");
@@ -124,7 +124,7 @@ function updatePreview() {
 async function patch(body) {
   const c = clip();
   try {
-    const res = await fetch(`/api/clips/${c.id}`, {
+    const res = await fetch(`api/clips/${c.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
