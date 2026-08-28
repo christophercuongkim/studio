@@ -520,6 +520,62 @@ _How to apply:_ `t.Setenv("XDG_CONFIG_HOME", tmp)` with a throwaway
 
 ---
 
+## CHR-25/26/27 — dashboard slices 4–6 (review, thumbs, upload)
+
+**Go's `http.ServeMux` treats a method-specific route (`GET /`) and an
+all-methods subtree (`/projects/{id}/review/`) as a conflict and panics at
+registration.**
+_Why:_ The catch-all `GET /` frontend route "matches fewer methods but a more
+general path" than the review subtree — the mux can't order them, so it refuses
+both.
+_How to apply:_ Register the subtree per method it actually needs
+(`GET`/`PATCH` for the review UI). Don't reach for a bare all-methods pattern
+next to a method-scoped one.
+
+**Relative asset/API paths let one SPA serve at two mount points.**
+_Why:_ The review UI is served both standalone (`studio serve` at `/`) and
+mounted in the dashboard (`/projects/{id}/review/`). Absolute paths
+(`/api/manifest`) only work at `/`; relative ones (`api/manifest`) resolve
+against whatever prefix the document loaded from.
+_How to apply:_ Drop the leading slash on fetch/asset URLs and mount the same
+`http.Handler` under `StripPrefix`. Ensure the mount path ends in `/` so
+relative resolution has the right base.
+
+**Cache a stateful per-project server; don't rebuild it per request.**
+_Why:_ The review server holds the debounced, in-memory manifest — a fresh
+instance per request would drop pending edits and re-read stale bytes.
+_How to apply:_ `map[dir]*server.Server` created on first use; `Close()` flushes
+them all on shutdown. Matches `serve`'s one-process-per-project lifetime.
+
+**A long external operation must run on `context.Background()`, not the request
+context.**
+_Why:_ A resumable YouTube upload can take minutes and must outlive the HTTP
+request that kicks it off — tying it to `r.Context()` cancels it the moment the
+browser tears the fetch down.
+_How to apply:_ Stream progress best-effort (writes fail silently if the client
+leaves) but run the work under `Background()`; state written back to
+`video.yaml` means a reload still shows the result.
+
+**Derive UI state from files, not a parallel field.**
+_Why:_ The thumbnail picker marks the "current" pick by byte-comparing each
+candidate to `thumbnail.png` — no separate "chosen" field to drift from what's
+actually on disk.
+_How to apply:_ When a pick is just "a copy of X is in place", detect it by
+comparison; the file stays the single source of truth.
+
+## CHR-28 — dashboard slice 7 (live refresh, docs)
+
+**Poll only the view that has no editors; never re-render a view holding form
+state.**
+_Why:_ 2s overview polling is harmless (it rebuilds cards), but polling the
+detail view would wipe a half-typed upload form, an open review iframe, or a
+thumbnail selection mid-interaction.
+_How to apply:_ Guard the interval on `overview` being visible (and no
+New-project form open), and make the poll silent so a transient fetch error
+doesn't spam toasts.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
