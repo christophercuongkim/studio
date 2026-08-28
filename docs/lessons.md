@@ -108,6 +108,43 @@ goroutine writing only its own slice index, covers fan-out without x/sync.
 
 ---
 
+## CHR-8 — serve (review UI)
+
+**For partial PATCH, decode into `map[string]json.RawMessage`, not a struct of
+pointers.**
+_Why:_ A `*int` field can't tell "key absent" from "key present and null", but
+the API needs `take: null` to *clear* while an omitted `take` leaves it alone.
+_How to apply:_ Decode to a raw map, then per-key `Unmarshal` only the keys that
+are present; nil-pointer targets then correctly distinguish null.
+
+**Validate on the server even when the UI already normalizes.**
+_Why:_ The browser lowercases/filters the desc slug, but a hand-crafted PATCH
+would otherwise write an illegal name straight into the manifest.
+_How to apply:_ `naming.ValidateDesc` runs in the PATCH handler; the frontend
+normalization is a convenience, not the guarantee.
+
+**A no-build embedded frontend duplicates any format string the server also
+owns — treat the server copy as authoritative.**
+_Why:_ The live final-name preview reimplements the naming template in JS to
+avoid a round-trip per keystroke; that's a drift risk against `naming.FinalStem`.
+_How to apply:_ Keep `/api/preview-name` as the source of truth; the JS mirror
+is cosmetic. If the template changes, update both and lean on the server value.
+
+**Debounced-save timer + shutdown flush: stop the timer under the lock, then
+flush.**
+_Why:_ A 500ms `time.AfterFunc` save can otherwise race with `Close`.
+_How to apply:_ `Close` takes the mutex, stops the timer, releases, then
+`Flush`; the timer callback re-locks and no-ops when not dirty. Verified by a
+test that PATCHes then `Close`s and reloads from disk.
+
+**Guard nonzero-exit commands when hand-testing servers.**
+_Why:_ A verification script that ran `pkill` aborted before its assertions
+because `pkill` exits 1 when nothing matched (and the shell stops on it).
+_How to apply:_ Append `|| true` to `pkill`/`pgrep`/`grep` in throwaway test
+scripts, or check the manifest directly instead of gating on the kill.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
