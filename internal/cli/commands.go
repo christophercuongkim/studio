@@ -13,7 +13,7 @@ var commands = []*Command{
 	{Name: "serve", Usage: "<project>", Summary: "Review UI: rate, name, keep/reject clips", Run: runServe},
 	{Name: "apply", Usage: "<project>", Summary: "Rename kept clips to their final names", Run: runApply},
 	{Name: "undo", Usage: "<project>", Summary: "Reverse the most recent apply", Run: runUndo},
-	{Name: "scaffold", Usage: "<project>", Summary: "Generate a Kdenlive project from a template"},
+	{Name: "scaffold", Usage: "<project>", Summary: "Generate a Kdenlive project from a template", Run: runScaffold},
 	{Name: "status", Usage: "<project>", Summary: "Show review/apply counts for a project"},
 	{Name: "search", Usage: "<text>", Summary: "Search clips across every ingested shoot"},
 	{Name: "prompt", Usage: "<project>", Summary: "Bullet-script recording prompter"},
