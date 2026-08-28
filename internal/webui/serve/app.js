@@ -179,8 +179,8 @@ function onKey(e) {
     case "j": select(state.i + 1); break;
     case "k": select(state.i - 1); break;
     case " ": e.preventDefault(); video.paused ? video.play() : video.pause(); break;
-    case "ArrowLeft": video.currentTime -= e.shiftKey ? 10 : 2; break;
-    case "ArrowRight": video.currentTime += e.shiftKey ? 10 : 2; break;
+    case "h": case "ArrowLeft": video.currentTime -= e.shiftKey ? 10 : 2; break;
+    case "l": case "ArrowRight": video.currentTime += e.shiftKey ? 10 : 2; break;
     case ",": frameStep(-1); break;
     case ".": frameStep(1); break;
     case "1": case "2": case "3": case "4": case "5": setRating(+e.key); break;
