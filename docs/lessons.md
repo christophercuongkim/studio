@@ -295,6 +295,35 @@ _How to apply:_ Track `bodyOffset` (the line after the closing `---`) and report
 
 ---
 
+## CHR-15 — qc
+
+**A full-scale sine does not clip after AAC encoding.**
+_Why:_ Lossy encode + decode perturbs sample peaks; a "0 dBFS" sine measured
+~−16 dBFS via astats. Engineering a clipping fixture through an encoder is
+unreliable.
+_How to apply:_ Unit-test the clipping *logic* with a crafted `Peak level dB:
+0.00` string; in the integration test assert an easier-to-hit FAIL (loudness of
+a bare sine is nowhere near −14 LUFS).
+
+**All-`-inf` astats peaks mean silence, which is PASS, not "no data".**
+_Why:_ A silent track has a real peak of −inf; treating "no finite peak" as a
+WARN mislabels silence as suspect.
+_How to apply:_ Return −inf as a found value; only a *missing* peak line WARNs.
+Clipping treats −inf as silent→PASS.
+
+**Combine ffmpeg analysis filters into one decode pass.**
+_Why:_ astats + silencedetect (audio) and blackdetect (video) can share a single
+`-f null -` run; only loudnorm (JSON to stderr) needs its own. Two passes total,
+not one per check — matters on long renders.
+
+**silencedetect/blackdetect can emit a start with no matching end (ran to EOF).**
+_Why:_ A trailing silence prints `silence_start` but the stream ends before
+`silence_end`.
+_How to apply:_ Pair starts/ends positionally and close a dangling start at the
+render duration, so tail silence still overlaps the tail window.
+
+---
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
