@@ -9,6 +9,7 @@ package cli
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -65,6 +66,24 @@ func Run(version string, args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// parseFlags parses fs while allowing flags and positional arguments to appear
+// in any order, returning the collected positionals. Go's flag package stops at
+// the first non-flag token (so `ingest <dir> --project x` would treat the flags
+// as positionals); this resumes parsing after each positional to fix that.
+func parseFlags(fs *flag.FlagSet, args []string) ([]string, error) {
+	var positional []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		if fs.NArg() == 0 {
+			return positional, nil
+		}
+		positional = append(positional, fs.Arg(0))
+		args = fs.Args()[1:]
+	}
 }
 
 // lookup returns the registered command with the given name, or nil.
