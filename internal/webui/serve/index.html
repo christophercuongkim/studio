@@ -1,15 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-app="voyage">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>studio — review</title>
+  <!-- No-flash theme: consumers set data-theme themselves (SeaKim theme-toggle.js is dev-only). -->
+  <script>
+    (function () {
+      try { document.documentElement.setAttribute("data-theme", localStorage.getItem("studio-theme") || "dark"); }
+      catch (e) { document.documentElement.setAttribute("data-theme", "dark"); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/seakim/styles.css">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <div id="app">
     <aside id="sidebar">
-      <header id="shoot"></header>
+      <header id="shoot">
+        <span id="shoot-title"></span>
+        <button id="theme-toggle" type="button" aria-label="Toggle light or dark theme">Light</button>
+      </header>
       <ul id="cliplist"></ul>
       <footer id="progress"></footer>
     </aside>
@@ -19,18 +30,18 @@
         <video id="video" preload="auto" muted></video>
         <p id="noproxy" hidden>No proxy for this clip.</p>
       </div>
-      <div id="meta"></div>
+      <div id="meta" class="tnum"></div>
       <form id="nameform" autocomplete="off">
         <div class="row">
-          <label>desc <input id="desc" type="text" maxlength="40" placeholder="sunset-dock-wide"></label>
-          <label>take <input id="take" type="number" min="0" step="1" placeholder="—"></label>
+          <label>Description <input id="desc" type="text" maxlength="40" placeholder="sunset-dock-wide"></label>
+          <label>Take <input id="take" class="tnum" type="number" min="0" step="1" placeholder="—"></label>
         </div>
-        <div id="preview"></div>
-        <p class="hint">j/k next·prev · space play · h/l seek (⇧ ±10s) · , . frame · 1–5 rate · x reject · r desc · enter save+keep · u next pending</p>
+        <div id="preview" class="tnum"></div>
+        <p class="hint">j/k next·prev · space play · h/l seek (⇧ ±10s) · , . frame · 1–5 rate · x reject · r desc · enter save + keep · u next pending</p>
       </form>
     </main>
   </div>
-  <div id="toast" hidden></div>
+  <div id="toast" role="status" hidden></div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
