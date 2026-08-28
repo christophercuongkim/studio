@@ -23,17 +23,17 @@ const depthCap = 6
 
 // Step is one pipeline stage and whether it's complete.
 type Step struct {
-	Name   string // short id: ingest, review, apply, …
-	Done   bool
-	Detail string // human note, e.g. "2 kept · 1 rejected"
+	Name   string `json:"name"` // short id: ingest, review, apply, …
+	Done   bool   `json:"done"`
+	Detail string `json:"detail"` // human note, e.g. "2 kept · 1 rejected"
 }
 
 // State is a project's full pipeline position.
 type State struct {
-	Dir   string
-	Title string
-	Steps []Step
-	Next  string // name of the first incomplete step; "" when done
+	Dir   string `json:"dir"`
+	Title string `json:"title"`
+	Steps []Step `json:"steps"`
+	Next  string `json:"next"` // name of the first incomplete step; "" when done
 }
 
 // NextStep returns the first incomplete step, or nil when the project is
