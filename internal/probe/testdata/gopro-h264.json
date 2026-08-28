@@ -1,0 +1,45 @@
+{
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "r_frame_rate": "60000/1001",
+            "avg_frame_rate": "60000/1001",
+            "duration": "12.362350",
+            "tags": {
+                "creation_time": "2026-07-04T09:15:42.000000Z",
+                "handler_name": "GoPro H.264"
+            }
+        },
+        {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "48000",
+            "channels": 2,
+            "r_frame_rate": "0/0",
+            "avg_frame_rate": "0/0"
+        },
+        {
+            "index": 2,
+            "codec_name": "bin_data",
+            "codec_type": "data",
+            "r_frame_rate": "0/0",
+            "avg_frame_rate": "0/0"
+        }
+    ],
+    "format": {
+        "filename": "GX010042.MP4",
+        "nb_streams": 3,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "duration": "12.362350",
+        "size": "98230011",
+        "tags": {
+            "creation_time": "2026-07-04T09:15:42.000000Z"
+        }
+    }
+}

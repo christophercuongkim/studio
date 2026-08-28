@@ -1,0 +1,40 @@
+{
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "hevc",
+            "codec_type": "video",
+            "width": 3840,
+            "height": 2160,
+            "pix_fmt": "yuv420p10le",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "42.358667",
+            "tags": {
+                "creation_time": "2026-08-27T14:23:01.000000Z",
+                "handler_name": "DJI.Meta"
+            }
+        },
+        {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "48000",
+            "channels": 2,
+            "r_frame_rate": "0/0",
+            "avg_frame_rate": "0/0",
+            "duration": "42.336000"
+        }
+    ],
+    "format": {
+        "filename": "DJI_20260827_142301_0014_D.MP4",
+        "nb_streams": 2,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "duration": "42.358667",
+        "size": "512034441",
+        "tags": {
+            "major_brand": "isom",
+            "creation_time": "2026-08-27T14:23:01.000000Z"
+        }
+    }
+}
