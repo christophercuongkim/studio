@@ -85,13 +85,13 @@
 .checklist { list-style: none; margin: 0 0 var(--space-7); padding: 0; }
 .checklist li {
   display: grid;
-  grid-template-columns: 1.6em 8em 1fr;
+  grid-template-columns: 2.5em 8em 1fr;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: var(--border-hairline) solid var(--border-subtle);
 }
-.checklist .box { color: var(--text-tertiary); font-family: var(--font-mono); }
+.checklist .box { color: var(--text-tertiary); font-family: var(--font-mono); white-space: nowrap; }
 .checklist li.done .box { color: var(--text-success); }
 .checklist li.next .name { color: var(--text-accent); font-weight: var(--weight-semibold); }
 .checklist .name { color: var(--text-primary); font: var(--type-body-sm); }
