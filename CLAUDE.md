@@ -44,8 +44,10 @@ Pulled from the plan's design principles. Violating one is a bug, not a style ni
   tool itself created (`proxy/`, `thumbs/raw/`), and only in `archive`.
 - **Servers bind `127.0.0.1`** — sole exception `studio prompt`, which defaults
   to `0.0.0.0` for second-device (iPad/Tailscale) use.
-- **`ingest` moves, not copies** (unless `--copy`). Flattened-name collisions are
-  a fatal error — report and abort before moving anything.
+- **`ingest` always copies, never moves** — the dump is left intact so a card is
+  safe to eject. `--clear-source` empties the card afterward, deleting each source
+  only once its copy verifies. Flattened-name collisions are a fatal error —
+  report and abort before writing anything.
 - Kdenlive XML parsing must **fail loudly** (dump the property) on an untested
   version, never silently mangle.
 

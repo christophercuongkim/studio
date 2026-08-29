@@ -65,9 +65,10 @@ directly:
 - `studio new <slug> --pick` — choose which external SSD to create the project on.
 - `studio ingest --pick --project <dir>` — choose which card to pull footage from.
 
-Ingesting from a card **copies** by default (the card stays intact, safe to
-eject); pass `--move` to force a move. Setting `externalRoot` (above) makes
-`studio new` use your SSD automatically whenever it's mounted, no `--pick` needed.
+Ingest always **copies** — the source is left intact, so a card is safe to eject
+right after. Pass `--clear-source` to empty the card once each copy verifies.
+Setting `externalRoot` (above) makes `studio new` use your SSD automatically
+whenever it's mounted, no `--pick` needed.
 
 ---
 
@@ -76,7 +77,7 @@ eject); pass `--move` to force a move. Setting `externalRoot` (above) makes
 | Command | What it does |
 |---|---|
 | `studio new <slug> [--title] [--date]` | Create a project folder + `script.md` / `video.yaml` skeletons |
-| `studio ingest <dump> --project <dir> [--cam] [--copy] [--jobs N] [--append]` | Import a card dump: group, probe, checksum, move, resolve proxies, write `manifest.json` |
+| `studio ingest <dump> --project <dir> [--cam] [--clear-source] [--jobs N] [--append]` | Import a card dump: group, probe, checksum, copy, resolve proxies, write `manifest.json` |
 | `studio serve <project> [--addr 127.0.0.1:7723]` | Browser review UI: rate, name, keep/reject (localhost) |
 | `studio apply <project> [--dry-run]` | Rename kept clips to final names, journaling for undo |
 | `studio undo <project> [--log …]` | Reverse the most recent apply |
@@ -106,7 +107,7 @@ $EDITOR ~/videos/2026-08-27_lake-trip/script.md
 # 2. (Optional) run the teleprompter while recording; open it on an iPad too.
 studio prompt ~/videos/2026-08-27_lake-trip --log
 
-# 3. Ingest the card dump (moves files; --copy to keep the card).
+# 3. Ingest the card dump (copies; --clear-source to empty the card after).
 studio ingest /run/media/you/DJI_CARD --project ~/videos/2026-08-27_lake-trip --cam DJI
 
 # 4. Review: rate, name, keep/reject — entirely from the keyboard.
