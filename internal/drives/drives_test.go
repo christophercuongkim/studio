@@ -28,6 +28,26 @@ func TestScan(t *testing.T) {
 	}
 }
 
+// TestDropContainers covers the NixOS/bare-udisks case: scanning the bare
+// /media root turns up both a real volume (/media/Extreme SSD) and the per-user
+// container dir (/media/chriskim); the container must be dropped, the volume kept.
+func TestDropContainers(t *testing.T) {
+	ds := []Drive{
+		{Label: "Extreme SSD", Path: "/media/Extreme SSD"},
+		{Label: "chriskim", Path: "/media/chriskim"}, // the per-user container
+		{Label: "SDCARD", Path: "/media/chriskim/SDCARD"},
+	}
+	got := dropContainers(ds, []string{"/run/media/chriskim", "/media/chriskim"})
+	if len(got) != 2 {
+		t.Fatalf("got %d drives, want 2: %+v", len(got), got)
+	}
+	for _, d := range got {
+		if d.Path == "/media/chriskim" {
+			t.Errorf("per-user container dir not dropped: %+v", got)
+		}
+	}
+}
+
 func TestPrompt(t *testing.T) {
 	ds := []Drive{{Label: "A", Path: "/run/media/me/A"}, {Label: "B", Path: "/run/media/me/B"}}
 

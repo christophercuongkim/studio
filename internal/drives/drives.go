@@ -1,8 +1,10 @@
 // Package drives enumerates connected external/removable storage (SD cards,
 // external SSDs) and offers a lightweight numbered picker. On Linux, udisks
-// auto-mounts each volume at /run/media/<user>/<LABEL> (or /media/<user>/…), so
-// the mount directory's name is the volume label and its path is the location —
-// no external tools, no TUI framework.
+// auto-mounts each volume under a per-user root — /run/media/<user>/<LABEL>
+// (Fedora/Arch) or /media/<user>/<LABEL> (Ubuntu) — or, with a bare udisks and
+// no logind session (NixOS), straight at /media/<LABEL>. Either way the mount
+// directory's name is the volume label and its path is the location, so we scan
+// all four roots — no external tools, no TUI framework.
 package drives
 
 import (
@@ -25,16 +27,41 @@ type Drive struct {
 
 // External returns the currently-mounted external volumes, sorted by label.
 func External() []Drive {
-	return scan(baseDirs())
+	// Scanning the bare /media and /run/media roots also surfaces the per-user
+	// mount dir itself (e.g. /media/<user>) as an entry; it's a container for
+	// volumes, not a volume, so drop it.
+	return dropContainers(scan(baseDirs()), userRoots())
 }
 
-// baseDirs are the auto-mount roots to scan (per-user udisks locations).
-func baseDirs() []string {
-	var b []string
+// userRoots are the per-user udisks auto-mount dirs, if the user is known.
+func userRoots() []string {
 	if u, err := user.Current(); err == nil && u.Username != "" {
-		b = append(b, filepath.Join("/run/media", u.Username), filepath.Join("/media", u.Username))
+		return []string{filepath.Join("/run/media", u.Username), filepath.Join("/media", u.Username)}
 	}
-	return b
+	return nil
+}
+
+// baseDirs are every auto-mount root to scan: the per-user dirs plus the bare
+// roots (NixOS/bare-udisks mounts at /media/<LABEL> with no <user> level).
+func baseDirs() []string {
+	return append(userRoots(), "/run/media", "/media")
+}
+
+// dropContainers removes any drive whose path is one of the skip paths — used to
+// hide the per-user mount dir that bare-root scanning turns up as a fake drive.
+func dropContainers(ds []Drive, skip []string) []Drive {
+	drop := map[string]bool{}
+	for _, s := range skip {
+		drop[s] = true
+	}
+	out := ds[:0]
+	for _, d := range ds {
+		if drop[d.Path] {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 // scan lists the immediate subdirectories of each base dir as drives.
