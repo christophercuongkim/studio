@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -92,7 +93,9 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 	emit(fmt.Sprintf("▶ ingesting from %s — %s …", req.Source, mode))
 
-	res, err := steps.Ingest(dir, req.Source, cfg.CamCode, true, req.ClearSource)
+	// context.Background so a browser disconnect doesn't abort a long copy
+	// mid-run; emit streams each per-file progress line to the page live.
+	res, err := steps.Ingest(context.Background(), dir, req.Source, cfg.CamCode, true, req.ClearSource, emit)
 	if res != nil {
 		for _, l := range res.Lines {
 			emit(l)

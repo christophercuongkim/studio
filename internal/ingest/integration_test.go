@@ -126,6 +126,94 @@ func TestRunEndToEnd(t *testing.T) {
 	}
 }
 
+// TestRunProgressReportsEachOriginal checks the copy-progress hook fires once
+// per original so a long copy never looks frozen.
+func TestRunProgressReportsEachOriginal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in -short mode")
+	}
+	requireBinaries(t, "ffmpeg", "ffprobe")
+
+	dump := t.TempDir()
+	proj := t.TempDir()
+	genVideo(t, filepath.Join(dump, "DJI_0001.MP4"), "libx264", true, "mp4")
+	genVideoDistinct(t, filepath.Join(dump, "DJI_0002.MP4"))
+
+	var lines []string
+	_, err := Run(context.Background(), Options{
+		DumpDir: dump, ProjectDir: proj, CamCode: "DJI", Jobs: 2, Copy: true,
+		Progress: func(s string) { lines = append(lines, s) },
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(lines) != 2 {
+		t.Fatalf("progress fired %d times, want 2:\n%v", len(lines), lines)
+	}
+}
+
+// TestRunInterruptedMidCopy cancels the run as the second clip begins copying
+// (via the progress hook, which fires just before each original's copy). The
+// first clip must be committed to a coherent manifest, the second must stay on
+// the source, and a later --append must finish it — proving an interrupted copy
+// is recoverable and leaves no orphan blocking the retry.
+func TestRunInterruptedMidCopy(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in -short mode")
+	}
+	requireBinaries(t, "ffmpeg", "ffprobe")
+
+	dump := t.TempDir()
+	proj := t.TempDir()
+	// Two clips with distinct content so neither is deduped on --append.
+	genVideo(t, filepath.Join(dump, "DJI_0001.MP4"), "libx264", true, "mp4")
+	genVideoDistinct(t, filepath.Join(dump, "DJI_0002.MP4"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	sum, err := Run(ctx, Options{
+		DumpDir: dump, ProjectDir: proj, CamCode: "DJI", Jobs: 1, Copy: true,
+		// Clips copy in sorted order; cancel just before the 2nd starts.
+		Progress: func(string) {
+			calls++
+			if calls == 2 {
+				cancel()
+			}
+		},
+	})
+	if err != ErrInterrupted {
+		t.Fatalf("Run err = %v, want ErrInterrupted", err)
+	}
+	if sum.NewClips != 1 {
+		t.Errorf("committed %d clips, want 1 (only the first finished copying)", sum.NewClips)
+	}
+
+	man, err := manifest.Load(proj)
+	if err != nil {
+		t.Fatalf("manifest after interrupt should still load: %v", err)
+	}
+	if len(man.Clips) != 1 || man.Clips[0].Stem != "DJI_0001" {
+		t.Fatalf("manifest clips = %+v, want just DJI_0001", man.Clips)
+	}
+	// The uncopied second original stays on the source (copy leaves it), and no
+	// orphan of it exists in the project to block the retry.
+	if _, err := os.Stat(filepath.Join(dump, "DJI_0002.MP4")); err != nil {
+		t.Errorf("DJI_0002.MP4 should remain on the source for --append: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "originals", "DJI_0002.MP4")); !os.IsNotExist(err) {
+		t.Errorf("DJI_0002.MP4 should not be a half-copied orphan in the project (stat err = %v)", err)
+	}
+
+	// --append finishes the interrupted clip.
+	sum2, err := Run(context.Background(), Options{DumpDir: dump, ProjectDir: proj, CamCode: "DJI", Jobs: 1, Copy: true, Append: true})
+	if err != nil {
+		t.Fatalf("append after interrupt: %v", err)
+	}
+	if sum2.NewClips != 1 {
+		t.Errorf("append picked up %d clips, want 1 (the interrupted DJI_0002)", sum2.NewClips)
+	}
+}
+
 func TestRunRefusesCollision(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in -short mode")

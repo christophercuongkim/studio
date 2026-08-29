@@ -44,16 +44,18 @@ func (r *Result) add(format string, args ...any) {
 func (r *Result) Text() string { return strings.Join(r.Lines, "\n") }
 
 // Ingest imports a card/dump into a project. copy leaves the source intact
-// (defaulted on for removable cards by the caller). It streams nothing here —
-// the caller emits the returned lines — but a Ctrl-C-style interruption is
-// reported as a normal line, not an error.
-func Ingest(projectDir, source, camCode string, copy, clearSource bool) (*Result, error) {
-	sum, err := ingest.Run(context.Background(), ingest.Options{
+// (always true for the current callers). progress, if non-nil, is called with a
+// per-file copy line as it happens, so a caller streaming to a browser/terminal
+// can show live progress; the final summary lines are still returned. A
+// Ctrl-C-style interruption is reported as a normal line, not an error.
+func Ingest(ctx context.Context, projectDir, source, camCode string, copy, clearSource bool, progress func(string)) (*Result, error) {
+	sum, err := ingest.Run(ctx, ingest.Options{
 		DumpDir:     source,
 		ProjectDir:  projectDir,
 		CamCode:     camCode,
 		Copy:        copy,
 		ClearSource: clearSource,
+		Progress:    progress,
 	})
 	r := &Result{}
 	if sum != nil {
