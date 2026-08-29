@@ -29,6 +29,32 @@ func TestCopyFileHappyPath(t *testing.T) {
 	}
 }
 
+// TestCopyFileHashedMatchesXXH64File guards the Part-2 optimization: the hash
+// computed while copying must be byte-for-byte the same string as hashing the
+// file separately, or --append dedup and archive verification would silently
+// break.
+func TestCopyFileHashedMatchesXXH64File(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.bin")
+	dst := filepath.Join(dir, "dst.bin")
+	// Content that isn't a whole number of chunks, to exercise the tail.
+	body := append(bytes.Repeat([]byte("abcxyz"), copyChunk/6), []byte("tail!")...)
+	if err := os.WriteFile(src, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	onCopy, err := copyFileHashed(context.Background(), src, dst)
+	if err != nil {
+		t.Fatalf("copyFileHashed: %v", err)
+	}
+	separate, err := xxh64File(src)
+	if err != nil {
+		t.Fatalf("xxh64File: %v", err)
+	}
+	if onCopy != separate {
+		t.Errorf("hash-on-copy = %s, xxh64File = %s (must match)", onCopy, separate)
+	}
+}
+
 // TestCopyFileCancelledLeavesNoPartial is the core of the freeze fix: a copy
 // under a cancelled context aborts and never leaves a partial destination
 // behind (which would otherwise block a later --append with a "destination

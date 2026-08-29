@@ -606,6 +606,19 @@ coherent and `--append` finishes the rest. Note the leftover: a run interrupted
 during *proxy generation* saves proxy-less clips that `--append` then skips by
 checksum — regenerating those is a separate follow-up.
 
+**Hash the original while you copy it, not in a separate pass — but share one
+formatter.** A fresh ingest used to read every original twice off the card:
+once to checksum (dedup key), once to copy. On a slow SSD that doubled the
+slowest phase.
+_Why:_ The checksum is only needed *before* the copy when appending (to skip
+already-ingested clips). A fresh ingest has nothing to dedup, so it can hash the
+bytes as they stream through the copy (`io.TeeReader`-style) and read once.
+_How to apply:_ Tee the hash off the *source* read (so a later re-hash of the
+destination is a real end-to-end verify). Keep the digest formatting in one
+place (`hash.Format`) so copy-time hashing and `XXH64File` can't diverge — a
+mismatch silently breaks `--append` dedup and archive verify. Keep the pre-copy
+checksum only on the `--append` path.
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,

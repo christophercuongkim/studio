@@ -50,6 +50,7 @@ type Summary struct {
 	FailedProxies     int
 	SkippedExisting   int // append: groups already in the manifest
 	ProbeFailures     []string
+	CopyFailures      []string // originals/sidecars that failed to copy (left on the source)
 	UnmatchedSidecars []string
 	ZeroByteSkipped   []string
 	RejectedProxies   []string
@@ -132,22 +133,25 @@ func Run(ctx context.Context, opts Options) (*Summary, error) {
 		kept = append(kept, probed{g: g, orig: res})
 	}
 
-	// Checksum originals in parallel.
+	// Checksum originals up front only when appending: the checksum is the
+	// dedup key, so we must know it before deciding what to copy. A fresh ingest
+	// has nothing to dedup against, so we skip this read and hash each original
+	// as it's copied instead — one pass over the (often slow) source, not two.
 	sums := make([]string, len(kept))
-	cerrs := make([]error, len(kept))
-	parallel(opts.jobs(), len(kept), func(i int) {
-		sums[i], cerrs[i] = xxh64File(kept[i].g.original.path)
-	})
-	for _, e := range cerrs {
-		if e != nil {
-			return nil, e // checksum failure is fatal; nothing has moved yet
-		}
-	}
-
-	// --append: drop groups whose checksum already exists in the manifest.
-	existing := map[string]bool{}
 	nextSeq := 1
 	if man != nil {
+		cerrs := make([]error, len(kept))
+		parallel(opts.jobs(), len(kept), func(i int) {
+			sums[i], cerrs[i] = xxh64File(kept[i].g.original.path)
+		})
+		for _, e := range cerrs {
+			if e != nil {
+				return nil, e // checksum failure is fatal; nothing has moved yet
+			}
+		}
+
+		// --append: drop groups whose checksum already exists in the manifest.
+		existing := map[string]bool{}
 		for _, c := range man.Clips {
 			existing[c.Media.XXH64] = true
 			if c.Seq >= nextSeq {
@@ -209,13 +213,21 @@ func Run(ctx context.Context, opts Options) (*Summary, error) {
 		}
 	}
 
-	// Move originals + sidecars + extras. The original is copied under ctx so a
-	// Ctrl-C aborts mid-file (copyFile removes the partial); once an original is
-	// in, its small sidecars/extras finish unconditionally so every committed
-	// clip is whole. On cancellation we stop between clips and keep only the
-	// fully-copied ones — the rest stay on the source for a later --append.
+	// Copy originals + sidecars + extras. The original is copied under ctx (so a
+	// Ctrl-C aborts mid-file, partial removed) and hashed in flight on a fresh
+	// ingest; once an original is in, its small sidecars/extras finish with a
+	// background context so a committed clip is never half-copied. A clip whose
+	// original can't be copied is rolled back, reported, and skipped — one bad
+	// source no longer aborts the whole ingest. On cancellation we stop between
+	// clips; either way only the clips that fully landed go downstream, so the
+	// manifest stays coherent and the rest stay on the source for a later --append.
 	interrupted := false
-	moved := make([]movedGroup, 0, len(kept))
+	type placed struct {
+		p   probed
+		mg  movedGroup
+		sum string
+	}
+	var done []placed
 	for i, p := range kept {
 		if ctx.Err() != nil {
 			interrupted = true
@@ -227,35 +239,56 @@ func Run(ctx context.Context, opts Options) (*Summary, error) {
 		}
 		mg := movedGroup{stem: p.g.stem}
 		mg.originalDst = filepath.Join(originalsDir, filepath.Base(p.g.original.path))
-		if err := moveFile(ctx, p.g.original.path, mg.originalDst, opts.Copy); err != nil {
+		csum, err := copyOriginal(ctx, opts, p.g.original.path, mg.originalDst, sums[i])
+		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				interrupted = true
 				break
 			}
-			return nil, err
+			sum.CopyFailures = append(sum.CopyFailures,
+				fmt.Sprintf("%s: %v", filepath.Base(p.g.original.path), err))
+			continue
 		}
-		// Sidecars/extras are tiny; finish them with a background context so a
-		// clip whose original landed is never left half-copied (no orphans).
+		// Sidecars/extras are tiny; finish them with a background context. If one
+		// fails, roll the whole clip back so no orphan blocks a later retry.
+		sidecarErr := false
 		for _, s := range append(append([]foundFile{}, p.g.sidecars...), p.g.extras...) {
 			dst := filepath.Join(originalsDir, filepath.Base(s.path))
 			if err := moveFile(context.Background(), s.path, dst, opts.Copy); err != nil {
-				return nil, err
+				sum.CopyFailures = append(sum.CopyFailures, fmt.Sprintf("%s: %v", filepath.Base(s.path), err))
+				sidecarErr = true
+				break
 			}
 			mg.sidecarDsts = append(mg.sidecarDsts, dst)
 		}
+		if sidecarErr {
+			os.Remove(mg.originalDst)
+			for _, d := range mg.sidecarDsts {
+				os.Remove(d)
+			}
+			continue
+		}
 		mg.proxyCand = p.g.proxyCand
-		moved = append(moved, mg)
+		done = append(done, placed{p: p, mg: mg, sum: csum})
 	}
-	// Drop any clips that didn't get copied before the interrupt so everything
-	// downstream (proxy resolution, manifest, --clear-source) sees only whole clips.
-	if interrupted {
-		kept = kept[:len(moved)]
-		sums = sums[:len(moved)]
-		if len(kept) == 0 {
-			sum.Interrupted = true
-			sum.Elapsed = opts.now().Sub(start)
+
+	// Keep only the clips that fully landed; everything downstream (proxy
+	// resolution, manifest, --clear-source) then sees a coherent set.
+	kept = kept[:0]
+	sums = sums[:0]
+	moved := make([]movedGroup, 0, len(done))
+	for _, d := range done {
+		kept = append(kept, d.p)
+		sums = append(sums, d.sum)
+		moved = append(moved, d.mg)
+	}
+	if len(kept) == 0 {
+		sum.Interrupted = interrupted
+		sum.Elapsed = opts.now().Sub(start)
+		if interrupted {
 			return sum, ErrInterrupted
 		}
+		return sum, nil // every copy failed (all reported); nothing to save
 	}
 
 	// Set unmatched sidecars aside (never dropped, never in the manifest).
@@ -401,6 +434,27 @@ type movedGroup struct {
 	originalDst string
 	sidecarDsts []string
 	proxyCand   *foundFile
+}
+
+// copyOriginal copies (or, in move mode, moves) an original into place and
+// returns its xxh64. When the checksum is already known — the --append case,
+// where it was computed for dedup — it copies plainly; otherwise it hashes the
+// bytes as they're copied so a fresh ingest reads the source only once. In
+// move mode with no known sum, it moves then hashes the destination.
+func copyOriginal(ctx context.Context, opts Options, src, dst, known string) (string, error) {
+	if known != "" {
+		if err := moveFile(ctx, src, dst, opts.Copy); err != nil {
+			return "", err
+		}
+		return known, nil
+	}
+	if opts.Copy {
+		return copyFileHashed(ctx, src, dst)
+	}
+	if err := moveFile(ctx, src, dst, opts.Copy); err != nil {
+		return "", err
+	}
+	return xxh64File(dst)
 }
 
 // resolveProxy adopts the camera proxy if suitable, else generates one (plan §6
