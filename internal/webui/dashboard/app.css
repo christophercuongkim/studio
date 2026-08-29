@@ -345,3 +345,32 @@
   color: var(--text-tertiary);
   font: var(--type-label);
 }
+
+/* --- Ingest progress bar --- */
+.ingest-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.pbar {
+  height: 0.5rem;
+  background: var(--surface-inset);
+  border: var(--border-hairline) solid var(--border-subtle);
+  overflow: hidden;
+}
+.pfill {
+  height: 100%;
+  width: 0;
+  background: var(--fill-accent);
+  transition: width 0.3s ease;
+}
+.ingest-progress.done .pfill { background: var(--fill-accent); }
+.ingest-progress.err .pfill { background: var(--text-danger); }
+.plabel {
+  margin: 0;
+  color: var(--text-secondary);
+  font: var(--type-body-sm);
+}
+.ingest-progress.done .plabel { color: var(--text-success); }
+.ingest-progress.err .plabel { color: var(--text-danger); }

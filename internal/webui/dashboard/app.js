@@ -398,6 +398,9 @@ async function ingestForm(id) {
     document.querySelectorAll(".actions .btn").forEach((b) => (b.disabled = true));
     const log = el("runlog");
     log.hidden = false;
+    log.textContent = "";
+    const prog = ingestProgressUI();
+    let buf = "";
     try {
       const res = await fetch(`/api/projects/${id}/ingest`, {
         method: "POST",
@@ -409,15 +412,79 @@ async function ingestForm(id) {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        log.textContent += dec.decode(value, { stream: true });
+        const text = dec.decode(value, { stream: true });
+        log.textContent += text;
         log.scrollTop = log.scrollHeight;
+        // Drive the bar off whole lines; keep the trailing partial in buf.
+        buf += text;
+        for (let nl; (nl = buf.indexOf("\n")) >= 0; buf = buf.slice(nl + 1)) {
+          prog.feed(buf.slice(0, nl));
+        }
       }
+      if (buf) prog.feed(buf);
     } catch (err) {
       log.textContent += "\n[connection error]\n";
+      prog.fail();
     }
     await renderDetail(id); // advances to review once clips land
   });
   return form;
+}
+
+// ingestProgressUI inserts a progress bar above the run log and returns a
+// `feed(line)` that parses the ingest stream. The copy step emits one line per
+// original — `copying N/M NAME (SIZE)` — so the bar tracks file count (the copy
+// is byte-heavy but we don't know the grand total up front; count is honest and
+// steady). The raw log stays below for per-file detail and warnings.
+function ingestProgressUI() {
+  const log = el("runlog");
+  log.parentNode.querySelectorAll(".ingest-progress").forEach((e) => e.remove());
+  const box = document.createElement("div");
+  box.className = "ingest-progress";
+  box.innerHTML = `<div class="pbar"><div class="pfill"></div></div><p class="plabel">Preparing…</p>`;
+  log.parentNode.insertBefore(box, log);
+  const fill = box.querySelector(".pfill");
+  const label = box.querySelector(".plabel");
+  const re = /^copying (\d+)\/(\d+) (.+) \(([^)]+)\)\s*$/;
+  let total = 0;
+  let last = 0;
+  let done = false;
+  return {
+    feed(line) {
+      const m = re.exec(line);
+      if (m) {
+        last = +m[1];
+        total = +m[2];
+        // File `last` is in progress, so `last-1` are complete.
+        const pct = total ? Math.min(100, Math.round(((last - 1) / total) * 100)) : 0;
+        fill.style.width = pct + "%";
+        label.textContent = `Copying ${last} of ${total} — ${m[3]} (${m[4]})`;
+        return;
+      }
+      if (/^✓\s*ingest done/.test(line)) {
+        done = true;
+        fill.style.width = "100%";
+        box.classList.add("done");
+        label.textContent = total ? `Copied ${total} file(s) ✓` : "Ingest done ✓";
+        return;
+      }
+      if (/^ERROR:/.test(line)) {
+        box.classList.add("err");
+        label.textContent = line.replace(/^ERROR:\s*/, "Error: ");
+        return;
+      }
+      // After the last file copies, ingest still adopts proxies and writes the
+      // manifest — reflect that tail so the bar doesn't look stalled at ~100%.
+      if (total && !done && last === total) {
+        fill.style.width = "99%";
+        label.textContent = "Finalizing — proxies + manifest…";
+      }
+    },
+    fail() {
+      box.classList.add("err");
+      label.textContent = "Connection lost — see the log below.";
+    },
+  };
 }
 
 // thumbsPicker builds the extract form + candidate gallery. Extraction streams
