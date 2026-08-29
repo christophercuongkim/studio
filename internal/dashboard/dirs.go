@@ -65,7 +65,15 @@ func withinRoot(path string, roots []string) (string, bool) {
 func (s *Server) handleRoots(w http.ResponseWriter, r *http.Request) {
 	out := []rootEntry{}
 	if cfg, err := config.Load(); err == nil && cfg.ProjectsRoot != "" {
-		out = append(out, rootEntry{Label: "Internal (default)", Path: cfg.ProjectsRoot})
+		// Not necessarily "internal" — projectsRoot can point anywhere, and often
+		// lives on the external SSD. Label it by what it is (the configured
+		// default) and flag when it's on a removable drive, so the picker never
+		// claims "internal" for a path that's actually on the SSD.
+		label := "Default location"
+		if drives.IsRemovable(cfg.ProjectsRoot) {
+			label = "Default location (external drive)"
+		}
+		out = append(out, rootEntry{Label: label, Path: cfg.ProjectsRoot})
 	}
 	for _, d := range drives.External() {
 		out = append(out, rootEntry{Label: d.Label, Path: d.Path})
