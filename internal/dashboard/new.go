@@ -58,7 +58,8 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleIngest imports a card into a project, streaming output. Body:
-// {source, copy, move}. Copy defaults on for removable sources unless move.
+// {source, clearSource}. Ingest always copies — the source is never moved — so
+// a card is safe to eject; clearSource empties it after each copy verifies.
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	dir, ok := decodeID(r.PathValue("id"))
 	if !ok || !s.known(dir) {
@@ -67,8 +68,6 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Source      string `json:"source"`
-		Copy        bool   `json:"copy"`
-		Move        bool   `json:"move"`
 		ClearSource bool   `json:"clearSource"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Source == "" {
@@ -76,7 +75,6 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg, _ := config.Load()
-	copyFiles := req.Copy || req.ClearSource || (!req.Move && drives.IsRemovable(req.Source))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -88,16 +86,13 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	mode := "moving"
-	if copyFiles {
-		mode = "copying (card stays intact)"
-		if req.ClearSource {
-			mode = "copying, then emptying the card"
-		}
+	mode := "copying (card stays intact)"
+	if req.ClearSource {
+		mode = "copying, then emptying the card"
 	}
 	emit(fmt.Sprintf("▶ ingesting from %s — %s …", req.Source, mode))
 
-	res, err := steps.Ingest(dir, req.Source, cfg.CamCode, copyFiles, req.ClearSource)
+	res, err := steps.Ingest(dir, req.Source, cfg.CamCode, true, req.ClearSource)
 	if res != nil {
 		for _, l := range res.Lines {
 			emit(l)

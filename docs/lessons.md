@@ -576,6 +576,21 @@ doesn't spam toasts.
 
 ---
 
+## Data safety
+
+**`ingest` always copies; it must never move. There is no move mode.**
+_Why:_ A real incident — ingest ran in move mode, then the source card was
+"reset" (deleted) on the assumption the high-res originals were still on it.
+They'd been moved into the project, but the mental model was "copy," so deleting
+the card destroyed the only high-res copies. A move-mode ingest turns a routine
+card wipe into irreversible data loss.
+_How to apply:_ Every ingest path hardcodes copy — CLI (`cmd_ingest.go`),
+dashboard (`new.go`), and the dashboard form (no copy/move toggle). Don't add a
+`--move`/move option back "for internal disks"; the disk cost is nothing next to
+losing footage. `--clear-source` is the only sanctioned deletion, and it removes
+a source only after re-hashing its copy. The dashboard ingest test asserts the
+source file still exists after ingest — keep that guard.
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,

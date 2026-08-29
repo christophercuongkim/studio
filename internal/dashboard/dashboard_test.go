@@ -478,13 +478,19 @@ func TestIngestEndpoint(t *testing.T) {
 	ts := newTS(t, root)
 	id := encodeID(dir)
 	res, err := http.Post(ts.URL+"/api/projects/"+id+"/ingest", "application/json",
-		strings.NewReader(`{"source":"`+card+`","copy":true}`))
+		strings.NewReader(`{"source":"`+card+`"}`))
 	if err != nil || res.StatusCode != 200 {
 		t.Fatalf("ingest: %v status %v", err, res.StatusCode)
 	}
 	body, _ := io.ReadAll(res.Body)
 	if !strings.Contains(string(body), "ingested 1 clip") {
 		t.Errorf("ingest output unexpected:\n%s", body)
+	}
+	// Ingest must always copy — the source card is never moved, so the original
+	// stays put and is safe to eject. This guards the data-loss footgun that a
+	// move-mode ingest reintroduces.
+	if _, err := os.Stat(filepath.Join(card, "DJI_0001.MP4")); err != nil {
+		t.Errorf("source file gone after ingest — it moved instead of copied: %v", err)
 	}
 	// Now ingested → next is review.
 	res2, _ := http.Get(ts.URL + "/api/projects/" + id)
