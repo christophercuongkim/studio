@@ -243,8 +243,22 @@ reach it:
 - **Tailscale ACLs.** The default policy allows device→device; only an issue if
   you've tightened it.
 
-Every other server (`serve`) binds `127.0.0.1` on purpose. To expose one
-temporarily, pass `--addr 0.0.0.0:<port>`.
+The other servers (`serve`, `dashboard`) bind `127.0.0.1` on purpose — keep them
+there and let **`tailscale serve`** reverse-proxy them onto the tailnet. That
+adds automatic HTTPS and a MagicDNS name, and still exposes nothing on your LAN:
+
+```sh
+studio dashboard              # stays on 127.0.0.1:7730
+tailscale serve --bg 7730     # → https://<host>.<tailnet>.ts.net (tailnet only)
+```
+
+Open the printed `https://…ts.net` URL from any device on the tailnet.
+`tailscale serve status` lists active mappings; `tailscale serve reset` clears
+them. (Same idea for `serve`: `tailscale serve --bg 7723`.)
+
+To skip the proxy you can bind the interface directly instead —
+`--addr $(tailscale ip -4 | head -1):7730` for tailnet-only, or
+`--addr 0.0.0.0:7730` for every interface (LAN included).
 
 ---
 
