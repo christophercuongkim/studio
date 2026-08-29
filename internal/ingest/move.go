@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"sort"
 	"syscall"
+
+	"github.com/cespare/xxhash/v2"
+	"github.com/christophercuongkim/studio/internal/hash"
 )
 
 // copyChunk is the read/write unit for a byte copy. It bounds how long a copy
@@ -50,25 +53,44 @@ func moveFile(ctx context.Context, src, dst string, forceCopy bool) error {
 // promptly (mid-file) rather than blocking inside one large read/write; the
 // partial destination is deleted on any failure, including cancellation.
 func copyFile(ctx context.Context, src, dst string) error {
+	_, err := copyFileCore(ctx, src, dst, nil)
+	return err
+}
+
+// copyFileHashed is copyFile that also returns the xxh64 of the bytes it read,
+// so an original's checksum comes free with its copy — one pass over the source
+// instead of a separate pre-copy hashing read (which doubled I/O on slow cards).
+func copyFileHashed(ctx context.Context, src, dst string) (string, error) {
+	h := xxhash.New()
+	if _, err := copyFileCore(ctx, src, dst, h); err != nil {
+		return "", err
+	}
+	return hash.Format(h.Sum64()), nil
+}
+
+// copyFileCore is the shared chunked copy. If h is non-nil, every byte read from
+// the source is also written to it, hashing the copy in flight. It returns the
+// number of bytes copied.
+func copyFileCore(ctx context.Context, src, dst string, h *xxhash.Digest) (int64, error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer in.Close()
 	si, err := in.Stat()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	out, err := os.Create(dst)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	fail := func(err error) error {
+	fail := func(err error) (int64, error) {
 		out.Close()
 		os.Remove(dst)
-		return err
+		return 0, err
 	}
 
 	buf := make([]byte, copyChunk)
@@ -79,6 +101,9 @@ func copyFile(ctx context.Context, src, dst string) error {
 		}
 		n, rerr := in.Read(buf)
 		if n > 0 {
+			if h != nil {
+				h.Write(buf[:n]) // hash the source bytes we're about to write
+			}
 			if _, werr := out.Write(buf[:n]); werr != nil {
 				return fail(fmt.Errorf("copy %s: %w", src, werr))
 			}
@@ -95,13 +120,13 @@ func copyFile(ctx context.Context, src, dst string) error {
 		return fail(fmt.Errorf("fsync %s: %w", dst, err))
 	}
 	if err := out.Close(); err != nil {
-		return err
+		return 0, err
 	}
 	if written != si.Size() {
 		os.Remove(dst)
-		return fmt.Errorf("copy %s: wrote %d bytes, expected %d", src, written, si.Size())
+		return 0, fmt.Errorf("copy %s: wrote %d bytes, expected %d", src, written, si.Size())
 	}
-	return nil
+	return written, nil
 }
 
 // collision is a pair of source files that would flatten to the same

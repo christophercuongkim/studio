@@ -30,10 +30,17 @@ func XXH64File(path string) (string, error) {
 	if _, err := io.CopyBuffer(h, f, buf); err != nil {
 		return "", fmt.Errorf("hash %s: %w", path, err)
 	}
+	return Format(h.Sum64()), nil
+}
+
+// Format renders an xxHash64 sum as studio's 16-char big-endian lowercase hex
+// digest — the exact string stored in manifest media.xxh64. Callers that hash a
+// stream themselves (e.g. ingest hashing bytes as it copies them) use this so
+// the format never diverges from XXH64File.
+func Format(sum uint64) string {
 	var out [8]byte
-	sum := h.Sum64()
 	for i := range 8 {
 		out[7-i] = byte(sum >> (8 * i))
 	}
-	return hex.EncodeToString(out[:]), nil
+	return hex.EncodeToString(out[:])
 }

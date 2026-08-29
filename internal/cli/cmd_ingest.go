@@ -119,4 +119,7 @@ func printIngestSummary(s *ingest.Summary) {
 	for _, w := range s.ProbeFailures {
 		fmt.Fprintf(os.Stderr, "warn: probe failed, left in dump: %s\n", w)
 	}
+	for _, w := range s.CopyFailures {
+		fmt.Fprintf(os.Stderr, "warn: copy failed, left on source: %s\n", w)
+	}
 }

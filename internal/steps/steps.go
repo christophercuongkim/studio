@@ -76,6 +76,9 @@ func Ingest(ctx context.Context, projectDir, source, camCode string, copy, clear
 		for _, p := range sum.ProbeFailures {
 			r.add("  probe failed (left in dump): %s", p)
 		}
+		for _, p := range sum.CopyFailures {
+			r.add("  copy failed (left on source): %s", p)
+		}
 	}
 	if errors.Is(err, ingest.ErrInterrupted) {
 		r.add("interrupted — re-run with append to finish")
