@@ -591,6 +591,21 @@ losing footage. `--clear-source` is the only sanctioned deletion, and it removes
 a source only after re-hashing its copy. The dashboard ingest test asserts the
 source file still exists after ingest — keep that guard.
 
+**A copy has to be cancellable and show progress, or it looks frozen and Ctrl-C
+does nothing.** `signal.NotifyContext` cancels the context, but a single
+`io.Copy` of a multi-GB original never checks it — the process ignores Ctrl-C
+until the whole (possibly minutes-long) copy finishes.
+_Why:_ On a real ingest from an external SSD the copy appeared hung and was
+un-interruptible; the terminal had to be killed. Rename hid this (instant);
+copy-always exposed it.
+_How to apply:_ Copy in bounded chunks, check `ctx.Err()` between chunks, and
+delete the partial destination on cancel (so a retry isn't blocked by a
+"destination already exists" orphan). Emit a per-file progress line. Interrupt
+between whole clips and keep only fully-copied ones, so the saved manifest is
+coherent and `--append` finishes the rest. Note the leftover: a run interrupted
+during *proxy generation* saves proxy-less clips that `--append` then skips by
+checksum — regenerating those is a separate follow-up.
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,

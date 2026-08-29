@@ -80,6 +80,7 @@ func runIngest(args []string) error {
 		ClearSource: *clearSource,
 		Jobs:        *jobs,
 		Append:      *appendMode,
+		Progress:    func(line string) { fmt.Println(line) },
 	})
 	if sum != nil {
 		printIngestSummary(sum)

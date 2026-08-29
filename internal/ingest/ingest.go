@@ -36,6 +36,10 @@ type Options struct {
 	Jobs        int       // parallelism for checksum + proxy work; <1 means auto
 	Append      bool      // add to an existing manifest
 	Now         time.Time // shoot/creation timestamp; zero means time.Now()
+	// Progress, if set, is called once per original as it starts copying, e.g.
+	// "copying 3/12 DJI_0003.MP4 (1.8 GiB)". It runs on the (sequential) copy
+	// goroutine, so it need not be concurrency-safe.
+	Progress func(string)
 }
 
 // Summary reports what an ingest run did, for the CLI to print.
@@ -205,37 +209,60 @@ func Run(ctx context.Context, opts Options) (*Summary, error) {
 		}
 	}
 
-	// Move originals + sidecars + extras.
-	moved := make([]movedGroup, len(kept))
+	// Move originals + sidecars + extras. The original is copied under ctx so a
+	// Ctrl-C aborts mid-file (copyFile removes the partial); once an original is
+	// in, its small sidecars/extras finish unconditionally so every committed
+	// clip is whole. On cancellation we stop between clips and keep only the
+	// fully-copied ones — the rest stay on the source for a later --append.
+	interrupted := false
+	moved := make([]movedGroup, 0, len(kept))
 	for i, p := range kept {
+		if ctx.Err() != nil {
+			interrupted = true
+			break
+		}
+		if opts.Progress != nil {
+			opts.Progress(fmt.Sprintf("copying %d/%d %s (%s)",
+				i+1, len(kept), filepath.Base(p.g.original.path), humanBytes(p.g.original.size)))
+		}
 		mg := movedGroup{stem: p.g.stem}
 		mg.originalDst = filepath.Join(originalsDir, filepath.Base(p.g.original.path))
-		if err := moveFile(p.g.original.path, mg.originalDst, opts.Copy); err != nil {
+		if err := moveFile(ctx, p.g.original.path, mg.originalDst, opts.Copy); err != nil {
+			if errors.Is(err, context.Canceled) {
+				interrupted = true
+				break
+			}
 			return nil, err
 		}
-		for _, s := range p.g.sidecars {
+		// Sidecars/extras are tiny; finish them with a background context so a
+		// clip whose original landed is never left half-copied (no orphans).
+		for _, s := range append(append([]foundFile{}, p.g.sidecars...), p.g.extras...) {
 			dst := filepath.Join(originalsDir, filepath.Base(s.path))
-			if err := moveFile(s.path, dst, opts.Copy); err != nil {
-				return nil, err
-			}
-			mg.sidecarDsts = append(mg.sidecarDsts, dst)
-		}
-		for _, e := range p.g.extras {
-			dst := filepath.Join(originalsDir, filepath.Base(e.path))
-			if err := moveFile(e.path, dst, opts.Copy); err != nil {
+			if err := moveFile(context.Background(), s.path, dst, opts.Copy); err != nil {
 				return nil, err
 			}
 			mg.sidecarDsts = append(mg.sidecarDsts, dst)
 		}
 		mg.proxyCand = p.g.proxyCand
-		moved[i] = mg
+		moved = append(moved, mg)
+	}
+	// Drop any clips that didn't get copied before the interrupt so everything
+	// downstream (proxy resolution, manifest, --clear-source) sees only whole clips.
+	if interrupted {
+		kept = kept[:len(moved)]
+		sums = sums[:len(moved)]
+		if len(kept) == 0 {
+			sum.Interrupted = true
+			sum.Elapsed = opts.now().Sub(start)
+			return sum, ErrInterrupted
+		}
 	}
 
 	// Set unmatched sidecars aside (never dropped, never in the manifest).
 	if len(unmatched) > 0 {
 		unmatchedDir := filepath.Join(originalsDir, "_unmatched")
 		for _, u := range unmatched {
-			_ = moveFile(u.path, filepath.Join(unmatchedDir, filepath.Base(u.path)), opts.Copy)
+			_ = moveFile(context.Background(), u.path, filepath.Join(unmatchedDir, filepath.Base(u.path)), opts.Copy)
 		}
 	}
 
@@ -245,7 +272,6 @@ func Run(ctx context.Context, opts Options) (*Summary, error) {
 	proxyInfos := make([]manifest.ProxyInfo, len(kept))
 	proxyRels := make([]string, len(kept))
 	rejected := make([]string, len(kept))
-	interrupted := false
 	var mu sync.Mutex
 
 	parallel(opts.jobs(), len(kept), func(i int) {
@@ -388,7 +414,7 @@ func resolveProxy(ctx context.Context, opts Options, mg movedGroup, orig probe.R
 		cand, err := probe.File(ctx, mg.proxyCand.path)
 		if err == nil {
 			if ok, reason := proxyAdoptable(cand, orig); ok {
-				if err := moveFile(mg.proxyCand.path, proxyDst, opts.Copy); err == nil {
+				if err := moveFile(ctx, mg.proxyCand.path, proxyDst, opts.Copy); err == nil {
 					return manifest.ProxyInfo{Source: manifest.ProxyCamera}, proxyRel, ""
 				}
 				// fall through to generation on move failure
@@ -402,7 +428,7 @@ func resolveProxy(ctx context.Context, opts Options, mg movedGroup, orig probe.R
 		}
 		// Rejected candidate is set aside, never deleted.
 		rejDir := filepath.Join(opts.ProjectDir, "originals", "_rejected-proxies")
-		_ = moveFile(mg.proxyCand.path, filepath.Join(rejDir, filepath.Base(mg.proxyCand.path)), opts.Copy)
+		_ = moveFile(context.Background(), mg.proxyCand.path, filepath.Join(rejDir, filepath.Base(mg.proxyCand.path)), opts.Copy)
 	}
 
 	stderr, err := proxy.Generate(ctx, mg.originalDst, proxyDst)
@@ -468,6 +494,20 @@ func deriveTitle(projectDir string) string {
 		return m[1]
 	}
 	return base
+}
+
+// humanBytes formats a byte count with a binary unit for progress lines.
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.2f GiB", float64(n)/(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.0f KiB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
 
 func camOrDefault(cam string) string {
