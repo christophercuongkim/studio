@@ -22,13 +22,97 @@ async function init() {
   }, 2000);
 }
 
-// Cache of external drives (label + path) for the pickers.
-async function getDrives() {
+// Picker starting points: the internal default root plus every connected drive.
+async function getRoots() {
   try {
-    return (await (await fetch("/api/drives")).json()) || [];
+    return (await (await fetch("/api/roots")).json()) || [];
   } catch (e) {
     return [];
   }
+}
+
+// folderBrowser renders a drill-down directory picker rooted at startPath and
+// calls onPick(path) when the user commits a folder. `intro` and `action` spell
+// out — inside the picker — what the chosen folder is FOR and what happens to
+// it, because a bare path is ambiguous (a destination? a source?).
+//   opts: { startPath, intro, action(path)->string, allowNew, commitLabel, onPick }
+function folderBrowser(opts) {
+  const box = document.createElement("div");
+  box.className = "browser";
+  let cur = opts.startPath;
+
+  const intro = document.createElement("p");
+  intro.className = "browser-intro";
+  intro.textContent = opts.intro;
+  const crumb = document.createElement("div");
+  crumb.className = "browser-path";
+  const list = document.createElement("ul");
+  list.className = "browser-list";
+  const foot = document.createElement("div");
+  foot.className = "browser-foot";
+  box.append(intro, crumb, list, foot);
+
+  function row(label, onClick, cls) {
+    const li = document.createElement("li");
+    li.className = "browser-row" + (cls ? " " + cls : "");
+    li.textContent = label;
+    li.tabIndex = 0;
+    li.onclick = onClick;
+    li.onkeydown = (e) => {
+      if (e.key === "Enter") onClick();
+    };
+    return li;
+  }
+
+  async function load(path) {
+    let data;
+    try {
+      const res = await fetch(`/api/dirs?path=${encodeURIComponent(path)}`);
+      if (!res.ok) throw new Error((await res.text()).trim());
+      data = await res.json();
+    } catch (e) {
+      list.innerHTML = "";
+      list.appendChild(row(`can't open this folder: ${e.message}`, () => {}, "err"));
+      return;
+    }
+    cur = data.path;
+    crumb.textContent = data.path;
+    list.innerHTML = "";
+    if (data.parent) list.appendChild(row("⤴  up a level", () => load(data.parent), "up"));
+    for (const d of data.dirs) list.appendChild(row("📁  " + d.name, () => load(d.path)));
+    if (!data.dirs.length) list.appendChild(row("(no subfolders here)", () => {}, "empty"));
+
+    foot.innerHTML = "";
+    const action = document.createElement("p");
+    action.className = "browser-action";
+    let newName = "";
+    const target = () => (newName ? cur.replace(/\/+$/, "") + "/" + newName : cur);
+    const refresh = () => (action.innerHTML = opts.action(target()));
+    foot.appendChild(action);
+
+    if (opts.allowNew) {
+      const nf = document.createElement("label");
+      nf.className = "browser-newfolder";
+      nf.innerHTML = `New subfolder (optional) <input placeholder="e.g. videos">`;
+      const inp = nf.querySelector("input");
+      inp.addEventListener("input", () => {
+        newName = inp.value.trim().replace(/[\\/]/g, "");
+        refresh();
+      });
+      foot.appendChild(nf);
+    }
+    refresh();
+
+    const use = document.createElement("button");
+    use.type = "button";
+    use.className = "btn primary";
+    use.textContent = opts.commitLabel || "Use this folder";
+    use.onclick = () => opts.onPick(target());
+    foot.appendChild(use);
+  }
+
+  load(opts.startPath);
+  return box;
 }
 
 // --- New project form ---
@@ -39,21 +123,27 @@ async function toggleNewForm() {
     c.innerHTML = "";
     return;
   }
-  const drives = await getDrives();
+  const roots = await getRoots();
   const form = document.createElement("form");
   form.className = "form";
   form.innerHTML = `
     <label>Slug <input name="slug" placeholder="lake-trip" required></label>
     <label>Title <input name="title" placeholder="A weekend at the lake"></label>
     <label>Date <input name="date" placeholder="today" pattern="\\d{4}-\\d{2}-\\d{2}"></label>
-    <label>Destination
-      <select name="root">
-        <option value="">Internal (default)</option>
-        ${drives.map((d) => `<option value="${d.path}">${d.label} — ${d.path}</option>`).join("")}
-      </select>
-    </label>
+    <fieldset class="dest">
+      <legend>Where should this project live?</legend>
+      <label>Drive / location
+        <select name="rootsel">
+          <option value="">— choose a drive or location —</option>
+          ${roots.map((r) => `<option value="${r.path}">${r.label} — ${r.path}</option>`).join("")}
+        </select>
+      </label>
+      <div class="browser-slot"></div>
+      <p class="dest-chosen" hidden></p>
+      <input type="hidden" name="root">
+    </fieldset>
     <div class="form-actions">
-      <button type="submit" class="btn primary">Create</button>
+      <button type="submit" class="btn primary" disabled>Create</button>
       <button type="button" class="btn" data-cancel>Cancel</button>
     </div>
     <p class="form-error" hidden></p>`;
@@ -61,6 +151,36 @@ async function toggleNewForm() {
   const slug = form.slug;
   slug.addEventListener("input", () => {
     slug.value = slug.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  });
+
+  // Step 2 of the destination: once a drive/location is chosen, drill into it to
+  // the exact folder that should CONTAIN the project.
+  const slot = form.querySelector(".browser-slot");
+  const chosen = form.querySelector(".dest-chosen");
+  const createBtn = form.querySelector('button[type="submit"]');
+  form.rootsel.addEventListener("change", () => {
+    slot.innerHTML = "";
+    chosen.hidden = true;
+    form.root.value = "";
+    createBtn.disabled = true;
+    if (!form.rootsel.value) return;
+    slot.appendChild(
+      folderBrowser({
+        startPath: form.rootsel.value,
+        allowNew: true,
+        commitLabel: "Create project here",
+        intro:
+          "Browse to the folder that should CONTAIN this project. Studio makes a new dated project folder inside it — nothing else in that folder is touched.",
+        action: (p) => `New project folder: <code>${p}/&lt;date&gt;_&lt;slug&gt;/</code>`,
+        onPick: (p) => {
+          form.root.value = p;
+          chosen.hidden = false;
+          chosen.innerHTML = `Project will be created in <code>${p}</code> — change it by picking again above.`;
+          createBtn.disabled = false;
+          slot.innerHTML = ""; // collapse the browser once a folder is chosen
+        },
+      }),
+    );
   });
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -224,22 +344,53 @@ function actions(d, step) {
 
 // ingestForm builds the source picker for a project awaiting footage.
 async function ingestForm(id) {
-  const drives = await getDrives();
+  const roots = await getRoots();
   const form = document.createElement("form");
   form.className = "form ingest";
   form.innerHTML = `
-    <label>Card / source
-      <select name="drive">
-        <option value="">— pick a drive —</option>
-        ${drives.map((d) => `<option value="${d.path}">${d.label} — ${d.path}</option>`).join("")}
-      </select>
-    </label>
-    <label>Path <input name="source" placeholder="/run/media/you/CARD" required></label>
+    <fieldset class="dest">
+      <legend>Where is the footage?</legend>
+      <label>Card / drive
+        <select name="rootsel">
+          <option value="">— pick the card or drive —</option>
+          ${roots.map((r) => `<option value="${r.path}">${r.label} — ${r.path}</option>`).join("")}
+        </select>
+      </label>
+      <div class="browser-slot"></div>
+      <p class="dest-chosen" hidden></p>
+      <input type="hidden" name="source">
+    </fieldset>
     <label class="check"><input type="checkbox" name="clear"> Empty the card after copying (verified — deletes sources only if the copy checks out)</label>
     <p class="note">Ingest always copies — the card is left intact, safe to eject.</p>
-    <div class="form-actions"><button type="submit" class="btn primary">Ingest</button></div>`;
-  form.drive.addEventListener("change", () => {
-    if (form.drive.value) form.source.value = form.drive.value;
+    <div class="form-actions"><button type="submit" class="btn primary" disabled>Ingest</button></div>`;
+
+  // Step 2: drill INTO the chosen card to the folder that holds the clips.
+  const slot = form.querySelector(".browser-slot");
+  const chosen = form.querySelector(".dest-chosen");
+  const goBtn = form.querySelector('button[type="submit"]');
+  form.rootsel.addEventListener("change", () => {
+    slot.innerHTML = "";
+    chosen.hidden = true;
+    form.source.value = "";
+    goBtn.disabled = true;
+    if (!form.rootsel.value) return;
+    slot.appendChild(
+      folderBrowser({
+        startPath: form.rootsel.value,
+        allowNew: false,
+        commitLabel: "Ingest from this folder",
+        intro:
+          "Browse INTO the card to the folder holding your clips (often DCIM/… on a camera card). Studio copies the media FROM the folder you choose into this project. The card is never modified.",
+        action: (p) => `Copy footage from <code>${p}</code>`,
+        onPick: (p) => {
+          form.source.value = p;
+          chosen.hidden = false;
+          chosen.innerHTML = `Will copy from <code>${p}</code> — change it by picking again above.`;
+          goBtn.disabled = false;
+          slot.innerHTML = "";
+        },
+      }),
+    );
   });
   form.addEventListener("submit", async (e) => {
     e.preventDefault();

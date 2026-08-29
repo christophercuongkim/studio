@@ -258,3 +258,90 @@
   font: var(--type-body-sm);
   box-shadow: var(--shadow-toast);
 }
+
+/* --- Destination / source folder picker (new + ingest) --- */
+.dest {
+  border: var(--border-hairline) solid var(--border-subtle);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.dest legend {
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  font: var(--type-label);
+}
+.dest-chosen {
+  margin: 0;
+  color: var(--text-secondary);
+  font: var(--type-body-sm);
+}
+.dest code,
+.browser code {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--surface-inset);
+  padding: 0 var(--space-2);
+}
+
+.browser {
+  border: var(--border-hairline) solid var(--border-default);
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.browser-intro {
+  margin: 0;
+  color: var(--text-secondary);
+  font: var(--type-body-sm);
+}
+.browser-path {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  word-break: break-all;
+}
+.browser-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 15rem;
+  overflow-y: auto;
+  border: var(--border-hairline) solid var(--border-subtle);
+  background: var(--surface-card);
+}
+.browser-row {
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+  cursor: pointer;
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+}
+.browser-row:last-child { border-bottom: none; }
+.browser-row:hover,
+.browser-row:focus-visible { background: var(--surface-hover); outline: none; }
+.browser-row.up { color: var(--text-link); }
+.browser-row.empty,
+.browser-row.err { color: var(--text-tertiary); cursor: default; }
+.browser-row.err { color: var(--text-danger); }
+
+.browser-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.browser-action {
+  margin: 0;
+  color: var(--text-secondary);
+  font: var(--type-body-sm);
+}
+.browser-newfolder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+  font: var(--type-label);
+}

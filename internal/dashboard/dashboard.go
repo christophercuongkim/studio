@@ -52,6 +52,8 @@ func (s *Server) Close() error {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/drives", s.handleDrives)
+	mux.HandleFunc("GET /api/roots", s.handleRoots)
+	mux.HandleFunc("GET /api/dirs", s.handleDirs)
 	mux.HandleFunc("GET /api/projects", s.handleList)
 	mux.HandleFunc("POST /api/projects", s.handleCreate)
 	mux.HandleFunc("GET /api/projects/{id}", s.handleDetail)
