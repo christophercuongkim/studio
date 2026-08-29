@@ -55,10 +55,9 @@ func runIngest(args []string) error {
 		return errors.New("--project is required")
 	}
 
-	// Copy (don't move) when the source is a removable card, so it's safe to
-	// eject right after — unless the user forced --move. Explicit --copy also wins.
-	switch {
-	case *clearSource:
+	// Ingest always copies; the dump is never mutated except by --clear-source,
+	// which empties the card only after each copy verifies.
+	if *clearSource {
 		fmt.Printf("copying, then emptying the card (sources deleted only after their copy verifies)\n")
 	}
 
