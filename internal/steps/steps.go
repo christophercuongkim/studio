@@ -142,8 +142,13 @@ func Scaffold(dir, templatePath, outPath string) (*Result, error) {
 		if c.Review.Status != manifest.StatusKept || !c.Applied.Done {
 			continue
 		}
+		proxy := ""
+		if c.Files.Proxy != "" {
+			proxy = filepath.Join(absProject, c.Files.Proxy)
+		}
 		clips = append(clips, kdenlive.ClipRef{
 			Resource:    filepath.Join(absProject, c.Files.Original),
+			Proxy:       proxy,
 			DurationSec: c.Media.DurationSec,
 			Group:       c.Review.Group,
 		})
