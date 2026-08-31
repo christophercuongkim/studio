@@ -185,12 +185,20 @@ function updatePreview() {
   el("preview").textContent = finalName(clip());
 }
 
-// normalizeGroup turns typed text into a legal bin-group token: whitespace runs
-// collapse to a single underscore, any other disallowed char is dropped, and
-// leading _/- are trimmed so it starts alphanumeric. Mirrors the server's
-// naming.ValidateGroup so a value never round-trips to a 400.
+// normalizeGroup turns typed text into a legal bin-group path. "/" nests folders
+// (london/b_roll); within each segment, whitespace runs collapse to a single
+// underscore, any other disallowed char is dropped, and leading _/- are trimmed
+// so every segment starts alphanumeric. Empty segments (leading/trailing/double
+// slash) are dropped. Mirrors the server's naming.ValidateGroup so a value never
+// round-trips to a 400. A trailing "/" is kept while typing so you can start the
+// next segment.
 function normalizeGroup(s) {
-  return s.replace(/\s+/g, "_").replace(/[^A-Za-z0-9_-]/g, "").replace(/^[_-]+/, "");
+  const trailingSlash = /\/$/.test(s);
+  const segs = s
+    .split("/")
+    .map((seg) => seg.replace(/\s+/g, "_").replace(/[^A-Za-z0-9_-]/g, "").replace(/^[_-]+/, ""))
+    .filter(Boolean);
+  return segs.join("/") + (trailingSlash && segs.length ? "/" : "");
 }
 
 // --- editing ---
@@ -243,6 +251,9 @@ function wireForm() {
     groupInput.value = normalizeGroup(groupInput.value);
   });
   groupInput.addEventListener("change", () => {
+    // A trailing "/" is a typing convenience only; the stored path has no empty
+    // final segment.
+    groupInput.value = groupInput.value.replace(/\/+$/, "");
     patch({ group: groupInput.value });
   });
 }
@@ -359,7 +370,7 @@ async function applyBulkNames() {
 // change keep/reject — grouping is isolated so it can't accidentally rewrite
 // descriptions.
 async function applyBulkGroup() {
-  const groupVal = el("bulk-group").value;
+  const groupVal = el("bulk-group").value.replace(/\/+$/, ""); // drop typing-only trailing slash
   if (!groupVal) return toast("enter a bin group first");
   const ok = await bulkRun(() => ({ group: groupVal }), (k) => `grouped ${k} clip(s)`, "bulk-apply-group");
   if (ok) el("bulk-group").value = "";

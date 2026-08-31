@@ -6,6 +6,7 @@ package naming
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -28,17 +29,19 @@ func ValidateDesc(desc string) error {
 	return nil
 }
 
-// MaxGroupLen bounds a bin-folder (group) name.
-const MaxGroupLen = 40
+// MaxGroupLen bounds a whole bin-folder path (all segments plus separators).
+const MaxGroupLen = 120
 
-// groupRe is the allowed charset for a bin-folder name. Mixed case is allowed
-// (these are Kdenlive display names), but no spaces — a group is typeable as a
-// single CLI token — and it must start alphanumeric so a name is never blank or
-// punctuation-only.
-var groupRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+// groupSegRe is the allowed charset for one bin-folder path segment. Mixed case
+// is allowed (these are Kdenlive display names), but no spaces — a group is
+// typeable as a single CLI token — and each segment must start alphanumeric so a
+// name is never blank or punctuation-only.
+var groupSegRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
-// ValidateGroup reports whether group is a legal bin-folder name. Empty is legal
-// and means "ungrouped" (the caller routes those to the default bin).
+// ValidateGroup reports whether group is a legal bin-folder path. A path may nest
+// with "/" (e.g. "london/b_roll") to arbitrary depth; each "/"-separated segment
+// must match groupSegRe. Empty is legal and means "ungrouped" (routed to the
+// default bin).
 func ValidateGroup(group string) error {
 	if group == "" {
 		return nil
@@ -46,8 +49,10 @@ func ValidateGroup(group string) error {
 	if len(group) > MaxGroupLen {
 		return fmt.Errorf("group too long (%d > %d chars)", len(group), MaxGroupLen)
 	}
-	if !groupRe.MatchString(group) {
-		return fmt.Errorf("group must match [A-Za-z0-9_-] and start alphanumeric (got %q)", group)
+	for _, seg := range strings.Split(group, "/") {
+		if !groupSegRe.MatchString(seg) {
+			return fmt.Errorf("group segment must match [A-Za-z0-9_-] and start alphanumeric (got %q in %q)", seg, group)
+		}
 	}
 	return nil
 }
