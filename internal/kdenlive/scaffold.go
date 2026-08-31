@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -19,72 +18,84 @@ type ClipRef struct {
 // binACam is the default bin folder for clips with no explicit group.
 const binACam = "A-Cam"
 
-// folderRe matches a bin-folder property name: kdenlive:folder.<parent>.<id>.
-var folderRe = regexp.MustCompile(`^kdenlive:folder\.-?\d+\.(\d+)$`)
+// folderRe matches a bin-folder property name: kdenlive:folder.<parent>.<id>,
+// capturing the parent id (group 1) and the folder's own id (group 2). A parent
+// of -1 is a root-level folder; any other parent nests the folder under it.
+var folderRe = regexp.MustCompile(`^kdenlive:folder\.(-?\d+)\.(\d+)$`)
 
 // idRe pulls the trailing integer from producer/chain ids like "chain12".
 var idRe = regexp.MustCompile(`(\d+)$`)
 
 // Scaffold injects one producer per clip into the template's bin and references
 // each from the main_bin playlist, routing each clip into the bin folder named
-// by its Group. A folder that already exists in the template (by exact name) is
-// reused; a new group name gets a fresh kdenlive:folder property created in
-// main_bin. Ungrouped clips route to A-Cam if that folder exists, else the bin
-// root. It mutates root in place.
+// by its Group. Group is a "/"-separated path (e.g. "london/b_roll") that nests
+// to arbitrary depth: each segment reuses an existing folder of that name under
+// the same parent, or creates a new kdenlive:folder property parented correctly.
+// Ungrouped clips route to A-Cam if it exists, else the bin root. It mutates root
+// in place.
 func Scaffold(root *Node, clips []ClipRef) error {
 	mainBin := root.Find("playlist", "id", "main_bin")
 	if mainBin == nil {
 		return fmt.Errorf("template has no <playlist id=\"main_bin\"> — not a Kdenlive project bin")
 	}
 
-	folders := binFolders(mainBin)
-	// Folder ids live in the property *name* (kdenlive:folder.-1.<id>), which the
-	// generic id scan doesn't see; fold them in so a created folder or producer
-	// never reuses an existing folder's id.
-	nextID := maxID(root)
-	for _, fid := range folders {
-		if i, err := strconv.Atoi(fid); err == nil && i > nextID {
-			nextID = i
-		}
-	}
-	nextID++
+	// index keys a folder by parent-id + name → its own id, so a name can repeat
+	// under different parents (real nesting). maxFolderID seeds the id counter
+	// with folder ids, which live in the property *name* and are invisible to the
+	// generic id scan.
+	index, maxFolderID := folderIndex(mainBin)
+	nextID := max(maxID(root), maxFolderID) + 1
 
-	// Create any folder named by a group that the template doesn't already have.
-	// Sort the distinct new names so id assignment is deterministic.
+	folderKey := func(parent, name string) string { return parent + "\x00" + name }
+
+	// ensurePath walks a "/"-separated group path, creating any missing folder
+	// along the way (parented under the previous segment), and returns the leaf
+	// folder id. An empty path routes to A-Cam if present, else the bin root.
 	var newFolders []*Node
-	for _, name := range distinctNewGroups(clips, folders) {
-		fid := strconv.Itoa(nextID)
-		nextID++
-		folders[name] = fid
-		newFolders = append(newFolders, prop("kdenlive:folder.-1."+fid, name))
+	ensurePath := func(path string) string {
+		if path == "" {
+			if id, ok := index[folderKey("-1", binACam)]; ok {
+				return id
+			}
+			return "-1"
+		}
+		parent := "-1"
+		for _, seg := range strings.Split(path, "/") {
+			key := folderKey(parent, seg)
+			if id, ok := index[key]; ok {
+				parent = id
+				continue
+			}
+			id := strconv.Itoa(nextID)
+			nextID++
+			index[key] = id
+			newFolders = append(newFolders, prop("kdenlive:folder."+parent+"."+id, seg))
+			parent = id
+		}
+		return parent
 	}
 
-	// Build producers and their bin entries.
+	// Pass 1: create every folder the clips need (folders take the lower ids).
+	leafID := make([]string, len(clips))
+	for i, c := range clips {
+		leafID[i] = ensurePath(c.Group)
+	}
+
+	// Pass 2: build producers and their bin entries, routed to their leaf folder.
 	var producers []*Node
 	var entries []*Node
-	for _, c := range clips {
+	for i, c := range clips {
 		id := nextID
 		nextID++
 		pid := fmt.Sprintf("producer%d", id)
 		tc := secondsToTimecode(c.DurationSec)
-
-		// A grouped clip goes to its folder (guaranteed to exist now); an
-		// ungrouped clip falls back to A-Cam, or the bin root if there's no A-Cam.
-		want := c.Group
-		if want == "" {
-			want = binACam
-		}
-		folderID := "-1"
-		if fid, ok := folders[want]; ok {
-			folderID = fid
-		}
 
 		p := &Node{Name: "producer", Attrs: attrs("id", pid, "out", tc)}
 		p.Children = []*Node{
 			prop("resource", c.Resource),
 			prop("mlt_service", "avformat-novalidate"),
 			prop("kdenlive:id", strconv.Itoa(id)),
-			prop("kdenlive:folderid", folderID),
+			prop("kdenlive:folderid", leafID[i]),
 			prop("kdenlive:clip_type", "0"),
 		}
 		producers = append(producers, p)
@@ -102,32 +113,11 @@ func Scaffold(root *Node, clips []ClipRef) error {
 	return nil
 }
 
-// distinctNewGroups returns, in stable sorted order, the group names referenced
-// by clips that don't already have a folder in the template.
-func distinctNewGroups(clips []ClipRef, have map[string]string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, c := range clips {
-		if c.Group == "" {
-			continue
-		}
-		if _, ok := have[c.Group]; ok {
-			continue // reuse an existing template folder of the same name
-		}
-		if seen[c.Group] {
-			continue
-		}
-		seen[c.Group] = true
-		out = append(out, c.Group)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// binFolders maps a bin folder name to its numeric id, from the main_bin
-// playlist's kdenlive:folder.<parent>.<id> properties.
-func binFolders(mainBin *Node) map[string]string {
-	out := map[string]string{}
+// folderIndex maps parent-id + "\x00" + name → folder id for every bin folder in
+// main_bin, and returns the largest folder id seen (for id allocation).
+func folderIndex(mainBin *Node) (map[string]string, int) {
+	index := map[string]string{}
+	max := 0
 	for _, c := range mainBin.Children {
 		if c.Name != "property" {
 			continue
@@ -137,10 +127,14 @@ func binFolders(mainBin *Node) map[string]string {
 			continue
 		}
 		if m := folderRe.FindStringSubmatch(name); m != nil {
-			out[strings.TrimSpace(c.Text)] = m[1]
+			parent, id := m[1], m[2]
+			index[parent+"\x00"+strings.TrimSpace(c.Text)] = id
+			if i, err := strconv.Atoi(id); err == nil && i > max {
+				max = i
+			}
 		}
 	}
-	return out
+	return index, max
 }
 
 // maxID returns the largest integer id found on any element id attribute or

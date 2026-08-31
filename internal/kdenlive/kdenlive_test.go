@@ -71,9 +71,8 @@ func TestScaffoldRoutesByGroup(t *testing.T) {
 	if got := countFolders(mainBin); got != beforeFolders+1 {
 		t.Errorf("bin folders = %d, want %d (only Interviews is new)", got, beforeFolders+1)
 	}
-	folders := binFolders(mainBin)
-	interviewsID, ok := folders["Interviews"]
-	if !ok {
+	interviewsID := findFolderID(mainBin, "-1", "Interviews")
+	if interviewsID == "" {
 		t.Fatal("Interviews folder was not created")
 	}
 
@@ -110,6 +109,80 @@ func TestScaffoldNoMainBin(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "main_bin") {
 		t.Fatalf("expected main_bin error, got %v", err)
 	}
+}
+
+// TestScaffoldNestedGroups covers arbitrary-depth paths: "london/b_roll" and
+// "london/interviews" share a created "london" parent, a deep path nests three
+// levels, and each leaf's folder is parented at the right id.
+func TestScaffoldNestedGroups(t *testing.T) {
+	root := loadTemplate(t)
+	mainBin := root.Find("playlist", "id", "main_bin")
+
+	clips := []ClipRef{
+		{Resource: "/abs/a.mp4", DurationSec: 1, Group: "london/b_roll"},
+		{Resource: "/abs/b.mp4", DurationSec: 1, Group: "london/interviews"},
+		{Resource: "/abs/c.mp4", DurationSec: 1, Group: "london/b_roll"}, // reuse both levels
+		{Resource: "/abs/d.mp4", DurationSec: 1, Group: "paris/day1/market"},
+	}
+	if err := Scaffold(root, clips); err != nil {
+		t.Fatal(err)
+	}
+
+	// london created once at root; b_roll and interviews nested under it.
+	london := findFolderID(mainBin, "-1", "london")
+	if london == "" {
+		t.Fatal("london folder not created at root")
+	}
+	bRoll := findFolderID(mainBin, london, "b_roll")
+	interviews := findFolderID(mainBin, london, "interviews")
+	if bRoll == "" || interviews == "" {
+		t.Fatalf("nested folders missing: b_roll=%q interviews=%q", bRoll, interviews)
+	}
+	if bRoll == interviews {
+		t.Error("b_roll and interviews must be distinct folders under london")
+	}
+
+	// Deep path paris/day1/market nests three levels, each parented correctly.
+	paris := findFolderID(mainBin, "-1", "paris")
+	day1 := findFolderID(mainBin, paris, "day1")
+	market := findFolderID(mainBin, day1, "market")
+	if paris == "" || day1 == "" || market == "" {
+		t.Fatalf("deep path not built: paris=%q day1=%q market=%q", paris, day1, market)
+	}
+
+	// Routing: clips a & c → b_roll; b → interviews; d → market.
+	if fid := propValue(findProducerByResource(root, "/abs/a.mp4"), "kdenlive:folderid"); fid != bRoll {
+		t.Errorf("a folderid = %q, want %q (london/b_roll)", fid, bRoll)
+	}
+	if fid := propValue(findProducerByResource(root, "/abs/c.mp4"), "kdenlive:folderid"); fid != bRoll {
+		t.Errorf("c folderid = %q, want %q (reused london/b_roll)", fid, bRoll)
+	}
+	if fid := propValue(findProducerByResource(root, "/abs/b.mp4"), "kdenlive:folderid"); fid != interviews {
+		t.Errorf("b folderid = %q, want %q (london/interviews)", fid, interviews)
+	}
+	if fid := propValue(findProducerByResource(root, "/abs/d.mp4"), "kdenlive:folderid"); fid != market {
+		t.Errorf("d folderid = %q, want %q (paris/day1/market)", fid, market)
+	}
+
+	// The generated project must still round-trip through the parser.
+	if _, err := Load(root.Render()); err != nil {
+		t.Fatalf("scaffolded project no longer parses: %v", err)
+	}
+}
+
+// findFolderID returns the id of the bin folder named `name` directly under
+// parent id `parent` ("-1" for root), or "" if absent.
+func findFolderID(mainBin *Node, parent, name string) string {
+	for _, c := range mainBin.Children {
+		if c.Name != "property" {
+			continue
+		}
+		pn, _ := c.Attr("name")
+		if m := folderRe.FindStringSubmatch(pn); m != nil && m[1] == parent && strings.TrimSpace(c.Text) == name {
+			return m[2]
+		}
+	}
+	return ""
 }
 
 func TestSecondsToTimecode(t *testing.T) {
