@@ -103,6 +103,70 @@ func TestScaffoldRoutesByGroup(t *testing.T) {
 	}
 }
 
+// TestScaffoldPreLinksProxy checks the proxy overlay: a clip with a proxy gets
+// kdenlive:proxy + kdenlive:originalurl (resource stays the original), and the
+// project-level enableproxy toggle is flipped to 1. A clip without a proxy gets
+// neither.
+func TestScaffoldPreLinksProxy(t *testing.T) {
+	root := loadTemplate(t)
+	mainBin := root.Find("playlist", "id", "main_bin")
+
+	clips := []ClipRef{
+		{Resource: "/p/originals/a.MP4", Proxy: "/p/proxy/a.mp4", DurationSec: 2},
+		{Resource: "/p/originals/b.MP4", Proxy: "", DurationSec: 2}, // no proxy
+	}
+	if err := Scaffold(root, clips); err != nil {
+		t.Fatal(err)
+	}
+
+	a := findProducerByResource(root, "/p/originals/a.MP4")
+	if got := propValue(a, "kdenlive:proxy"); got != "/p/proxy/a.mp4" {
+		t.Errorf("a kdenlive:proxy = %q, want /p/proxy/a.mp4", got)
+	}
+	if got := propValue(a, "kdenlive:originalurl"); got != "/p/originals/a.MP4" {
+		t.Errorf("a kdenlive:originalurl = %q, want the original", got)
+	}
+	if got := propValue(a, "resource"); got != "/p/originals/a.MP4" {
+		t.Errorf("a resource = %q, want the original (proxy is an overlay)", got)
+	}
+
+	b := findProducerByResource(root, "/p/originals/b.MP4")
+	if got := propValue(b, "kdenlive:proxy"); got != "" {
+		t.Errorf("b kdenlive:proxy = %q, want empty (no proxy)", got)
+	}
+
+	// Project-level proxy toggle flipped on.
+	if got := propValue(mainBin, "kdenlive:docproperties.enableproxy"); got != "1" {
+		t.Errorf("enableproxy = %q, want 1", got)
+	}
+}
+
+// TestScaffoldEnableProxyReplacesTemplateZero guards the update-in-place path: a
+// template that ships enableproxy=0 must end up at 1, not gain a duplicate.
+func TestScaffoldEnableProxyReplacesTemplateZero(t *testing.T) {
+	root := loadTemplate(t)
+	mainBin := root.Find("playlist", "id", "main_bin")
+	mainBin.Children = append([]*Node{prop("kdenlive:docproperties.enableproxy", "0")}, mainBin.Children...)
+
+	if err := Scaffold(root, []ClipRef{{Resource: "/p/originals/a.MP4", Proxy: "/p/proxy/a.mp4"}}); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, c := range mainBin.Children {
+		if c.Name == "property" {
+			if name, _ := c.Attr("name"); name == "kdenlive:docproperties.enableproxy" {
+				n++
+				if c.Text != "1" {
+					t.Errorf("enableproxy = %q, want 1", c.Text)
+				}
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("enableproxy property count = %d, want exactly 1 (updated in place)", n)
+	}
+}
+
 func TestScaffoldNoMainBin(t *testing.T) {
 	root, _ := Load([]byte(`<?xml version='1.0'?><mlt><profile/></mlt>`))
 	err := Scaffold(root, []ClipRef{{Resource: "x.mp4"}})

@@ -11,6 +11,7 @@ import (
 // ClipRef is one clip to place in the project bin.
 type ClipRef struct {
 	Resource    string // absolute path to the original media
+	Proxy       string // absolute path to the low-res proxy, or "" if none
 	DurationSec float64
 	Group       string // bin folder to route into; empty routes to A-Cam
 }
@@ -98,10 +99,28 @@ func Scaffold(root *Node, clips []ClipRef) error {
 			prop("kdenlive:folderid", leafID[i]),
 			prop("kdenlive:clip_type", "0"),
 		}
+		// Pre-link studio's proxy so Kdenlive uses it directly instead of running
+		// its (unreliable) external-proxy match or regenerating one. resource
+		// stays the original; kdenlive:proxy overlays the low-res file, matching
+		// exactly how Kdenlive serialises a proxied clip. Needs enableproxy=1
+		// (set on main_bin below) to take effect.
+		if c.Proxy != "" {
+			p.Children = append(p.Children,
+				prop("kdenlive:proxy", c.Proxy),
+				prop("kdenlive:originalurl", c.Resource),
+			)
+		}
 		producers = append(producers, p)
 
 		e := &Node{Name: "entry", Attrs: attrs("in", "00:00:00.000", "out", tc, "producer", pid)}
 		entries = append(entries, e)
+	}
+
+	// Turn the project-level "Proxy clips" toggle on so the pre-linked
+	// kdenlive:proxy overlays actually take effect when the project opens. Only
+	// bother if at least one clip carries a proxy.
+	if anyProxy(clips) {
+		setDocProperty(mainBin, "kdenlive:docproperties.enableproxy", "1")
 	}
 
 	// Folder properties belong in main_bin alongside the existing ones (prepend
@@ -111,6 +130,30 @@ func Scaffold(root *Node, clips []ClipRef) error {
 	insertBefore(root, mainBin, producers)
 	mainBin.Children = append(mainBin.Children, entries...)
 	return nil
+}
+
+func anyProxy(clips []ClipRef) bool {
+	for _, c := range clips {
+		if c.Proxy != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// setDocProperty sets a kdenlive:docproperties.* property on main_bin, updating
+// the value in place if it already exists (e.g. a template shipping
+// enableproxy=0) or inserting a new property otherwise.
+func setDocProperty(mainBin *Node, name, value string) {
+	for _, c := range mainBin.Children {
+		if c.Name == "property" {
+			if n, _ := c.Attr("name"); n == name {
+				c.Text = value
+				return
+			}
+		}
+	}
+	mainBin.Children = append([]*Node{prop(name, value)}, mainBin.Children...)
 }
 
 // folderIndex maps parent-id + "\x00" + name → folder id for every bin folder in
