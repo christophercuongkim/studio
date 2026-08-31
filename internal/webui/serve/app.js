@@ -26,6 +26,7 @@ const SHORTCUTS = [
 const video = el("video");
 const descInput = el("desc");
 const takeInput = el("take");
+const groupInput = el("group");
 
 init();
 
@@ -115,10 +116,11 @@ function renderList() {
     li.className =
       c.review.status + (idx === state.i ? " active" : "") + (state.sel.has(idx) ? " selected" : "");
     const stars = "★".repeat(c.review.rating) + "☆".repeat(5 - c.review.rating);
+    const grp = c.review.group ? `<span class="grp">${c.review.group}</span>` : "";
     li.innerHTML =
       `<input class="pick" type="checkbox" ${state.sel.has(idx) ? "checked" : ""} aria-label="Select clip">` +
       `<span class="dot"></span>` +
-      `<span class="name">${c.review.desc || c.stem}</span>` +
+      `<span class="name">${c.review.desc || c.stem}${grp}</span>` +
       `<span class="dur">${fmtDur(c.media.durationSec)}</span>` +
       `<span class="stars">${stars}</span>`;
     // The checkbox toggles bulk selection without navigating; the rest of the
@@ -133,6 +135,15 @@ function renderList() {
   });
   renderProgress();
   renderBulkBar();
+  refreshGroupList();
+}
+
+// refreshGroupList fills the shared <datalist> with the distinct group names in
+// use, so both the per-clip and bulk group fields autocomplete existing folders
+// (keeps names consistent instead of typos spawning near-duplicate bins).
+function refreshGroupList() {
+  const names = [...new Set(state.man.clips.map((c) => c.review.group).filter(Boolean))].sort();
+  el("group-list").innerHTML = names.map((n) => `<option value="${n}"></option>`).join("");
 }
 
 function renderProgress() {
@@ -164,6 +175,7 @@ function select(idx) {
     `${c.media.width}×${c.media.height} · ${c.media.fps || "?"}fps · ${c.media.vcodec} · proxy:${c.proxyInfo.source}`;
   descInput.value = c.review.desc || "";
   takeInput.value = c.review.take != null ? c.review.take : "";
+  groupInput.value = c.review.group || "";
   updatePreview();
   renderList();
   document.querySelector("#cliplist li.active")?.scrollIntoView({ block: "nearest" });
@@ -216,6 +228,15 @@ function wireForm() {
     clip().review.take = Number.isFinite(v) && v > 0 ? v : null;
     updatePreview();
   });
+  // Group: strip disallowed chars as typed (letters/digits/_/-; no spaces so it
+  // stays a single CLI token). Persist on change (blur / Enter), not per keystroke
+  // — it doesn't affect the filename preview, so there's nothing to live-update.
+  groupInput.addEventListener("input", () => {
+    groupInput.value = groupInput.value.replace(/[^A-Za-z0-9_-]/g, "");
+  });
+  groupInput.addEventListener("change", () => {
+    patch({ group: groupInput.value });
+  });
 }
 
 // Save current desc/take and mark kept, then jump to the next pending clip.
@@ -267,9 +288,11 @@ function renderBulkBar() {
 }
 
 function wireBulk() {
-  const desc = el("bulk-desc");
-  desc.addEventListener("input", () => {
-    desc.value = desc.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  el("bulk-desc").addEventListener("input", (e) => {
+    e.target.value = e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  });
+  el("bulk-group").addEventListener("input", (e) => {
+    e.target.value = e.target.value.replace(/[^A-Za-z0-9_-]/g, "");
   });
   el("bulk-clear").addEventListener("click", clearSelection);
   el("bulkbar").addEventListener("submit", (e) => {
@@ -278,25 +301,32 @@ function wireBulk() {
   });
 }
 
-// applyBulk writes the one description across every selected clip (in list
-// order), optionally numbering takes _t1.._tN, and marks them kept. One paint
-// at the end. A single failed PATCH stops the run and reports which clip.
+// applyBulk writes whichever of {description, bin group} are filled across every
+// selected clip (in list order), optionally numbering takes _t1.._tN when a
+// description is set, and marks them kept. One paint at the end; a single failed
+// PATCH stops the run and reports which clip.
 async function applyBulk() {
   const idxs = [...state.sel].sort((a, b) => a - b);
   if (!idxs.length) return;
   const descVal = el("bulk-desc").value;
-  if (!descVal) return toast("enter a description first");
+  const groupVal = el("bulk-group").value;
+  if (!descVal && !groupVal) return toast("enter a description or bin group first");
   const autoTake = el("bulk-take").checked;
   el("bulk-apply").disabled = true;
   try {
     for (let n = 0; n < idxs.length; n++) {
-      const body = { desc: descVal, status: "kept" };
-      if (autoTake) body.take = n + 1;
+      const body = { status: "kept" };
+      if (descVal) {
+        body.desc = descVal;
+        if (autoTake) body.take = n + 1;
+      }
+      if (groupVal) body.group = groupVal;
       await patchClip(idxs[n], body);
     }
     toast(`updated ${idxs.length} clip(s)`);
     clearSelection();
     el("bulk-desc").value = "";
+    el("bulk-group").value = "";
     select(state.i); // refresh the open clip's fields/preview if it was in the set
   } catch (e) {
     toast(e.message || "bulk update failed");
@@ -322,6 +352,9 @@ function onKey(e) {
     else if (e.key === "Enter" && document.activeElement === descInput) {
       e.preventDefault();
       saveKeepAdvance();
+    } else if (e.key === "Enter" && document.activeElement === groupInput) {
+      e.preventDefault();
+      groupInput.blur(); // fires the change handler → persists the group
     }
     return;
   }

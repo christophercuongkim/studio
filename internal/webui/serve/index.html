@@ -37,6 +37,7 @@
       <form id="bulkbar" autocomplete="off" hidden>
         <span id="bulk-count"></span>
         <label>Description <input id="bulk-desc" type="text" maxlength="40" placeholder="market-b-roll"></label>
+        <label>Bin group <input id="bulk-group" type="text" maxlength="40" placeholder="Interviews" list="group-list"></label>
         <label class="inline"><input id="bulk-take" type="checkbox" checked> auto-number takes (_t1, _t2…)</label>
         <button id="bulk-apply" type="submit" class="primary">Apply + keep</button>
         <button id="bulk-clear" type="button">Clear</button>
@@ -45,10 +46,12 @@
         <div class="row">
           <label>Description <input id="desc" type="text" maxlength="40" placeholder="sunset-dock-wide"></label>
           <label>Take <input id="take" class="tnum" type="number" min="0" step="1" placeholder="—"></label>
+          <label>Bin group <input id="group" type="text" maxlength="40" placeholder="Interviews" list="group-list"></label>
         </div>
         <div id="preview" class="tnum"></div>
         <p class="hint"></p>
       </form>
+      <datalist id="group-list"></datalist>
     </main>
   </div>
   <div id="help-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" hidden>
