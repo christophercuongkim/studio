@@ -170,3 +170,77 @@
   font: var(--type-body-sm);
   box-shadow: var(--shadow-toast);
 }
+
+/* --- Header actions + help button --- */
+.header-actions { display: flex; align-items: center; gap: var(--space-2); }
+#help-toggle {
+  font: var(--type-label);
+  color: var(--text-secondary);
+  background: var(--fill-neutral);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-none);
+  height: var(--control-h-sm);
+  width: var(--control-h-sm);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+#help-toggle:hover { background: var(--fill-neutral-hover); color: var(--text-primary); }
+#help-toggle:active { transform: scale(var(--press-scale)); }
+
+/* --- Shortcuts overlay (a fixed modal — a shadow is justified here) --- */
+#help-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--overlay-scrim, rgba(0, 0, 0, 0.5));
+  z-index: 10;
+}
+#help-card {
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-default);
+  box-shadow: var(--shadow-toast);
+  max-width: 26rem;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+}
+#help-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+}
+#help-card h2 { margin: 0; font: var(--type-subheading); color: var(--text-primary); }
+#help-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: var(--type-body);
+}
+#help-close:hover { color: var(--text-primary); }
+#help-table { width: 100%; border-collapse: collapse; }
+#help-table td {
+  padding: var(--space-3) var(--space-5);
+  color: var(--text-secondary);
+  font: var(--type-body-sm);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+  vertical-align: top;
+}
+#help-table td.keys { white-space: nowrap; width: 1%; }
+#help-table tr:last-child td { border-bottom: none; }
+kbd {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 0 var(--space-2);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  background: var(--surface-inset);
+  border: var(--border-hairline) solid var(--border-default);
+}

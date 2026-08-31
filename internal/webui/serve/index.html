@@ -19,7 +19,10 @@
     <aside id="sidebar">
       <header id="shoot">
         <span id="shoot-title"></span>
-        <button id="theme-toggle" type="button" aria-label="Toggle light or dark theme">Light</button>
+        <div class="header-actions">
+          <button id="help-toggle" type="button" aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+          <button id="theme-toggle" type="button" aria-label="Toggle light or dark theme">Light</button>
+        </div>
       </header>
       <ul id="cliplist"></ul>
       <footer id="progress"></footer>
@@ -37,9 +40,18 @@
           <label>Take <input id="take" class="tnum" type="number" min="0" step="1" placeholder="—"></label>
         </div>
         <div id="preview" class="tnum"></div>
-        <p class="hint">j/k next·prev · space play · h/l seek (⇧ ±10s) · , . frame · 1–5 rate · x reject · r desc · enter save + keep · u next pending</p>
+        <p class="hint"></p>
       </form>
     </main>
+  </div>
+  <div id="help-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" hidden>
+    <div id="help-card">
+      <header>
+        <h2>Keyboard shortcuts</h2>
+        <button id="help-close" type="button" aria-label="Close">✕</button>
+      </header>
+      <table id="help-table"></table>
+    </div>
   </div>
   <div id="toast" role="status" hidden></div>
   <script type="module" src="app.js"></script>

@@ -5,6 +5,22 @@
 const el = (id) => document.getElementById(id);
 const state = { man: null, cam: "", i: 0 };
 
+// Single source of truth for the shortcuts — feeds both the one-line hint under
+// the form and the ? overlay, so they can never drift apart. `keys` are the
+// glyphs to show; `hint` is the compact label; `desc` the fuller one.
+const SHORTCUTS = [
+  { keys: ["j", "k"], hint: "next·prev", desc: "Next / previous clip" },
+  { keys: ["space"], hint: "play", desc: "Play / pause" },
+  { keys: ["h", "l"], hint: "seek (⇧ ±10s)", desc: "Seek ∓2s (hold ⇧ for ∓10s)" },
+  { keys: [",", "."], hint: "frame", desc: "Step one frame back / forward" },
+  { keys: ["1", "–", "5"], hint: "rate", desc: "Rate the clip 1–5" },
+  { keys: ["x"], hint: "reject", desc: "Reject clip (press again to un-reject)" },
+  { keys: ["r"], hint: "desc", desc: "Edit the description" },
+  { keys: ["enter"], hint: "save + keep", desc: "Save description and mark the clip kept" },
+  { keys: ["u"], hint: "next pending", desc: "Jump to the next undecided clip" },
+  { keys: ["?"], hint: "help", desc: "Show / hide this shortcuts panel" },
+];
+
 const video = el("video");
 const descInput = el("desc");
 const takeInput = el("take");
@@ -24,7 +40,32 @@ async function init() {
   if (state.man.clips.length) select(0);
   wireForm();
   wireTheme();
+  wireHelp();
   document.addEventListener("keydown", onKey);
+}
+
+// wireHelp builds the hint bar and the ? overlay from SHORTCUTS, and wires the
+// button, backdrop, and close control. Toggling is also bound to the ? key in
+// onKey so it works from anywhere.
+function wireHelp() {
+  const kbd = (k) => (k === "–" ? "–" : `<kbd>${k}</kbd>`);
+  document.querySelector(".hint").innerHTML = SHORTCUTS.map(
+    (s) => `${s.keys.map(kbd).join("/")} ${s.hint}`,
+  ).join(" · ");
+  el("help-table").innerHTML = SHORTCUTS.map(
+    (s) => `<tr><td class="keys">${s.keys.map(kbd).join(" ")}</td><td>${s.desc}</td></tr>`,
+  ).join("");
+  el("help-toggle").addEventListener("click", () => toggleHelp());
+  el("help-close").addEventListener("click", () => toggleHelp(false));
+  el("help-overlay").addEventListener("click", (e) => {
+    if (e.target === el("help-overlay")) toggleHelp(false); // click the backdrop
+  });
+}
+
+// toggleHelp shows/hides the overlay. Pass a boolean to force a state.
+function toggleHelp(force) {
+  const o = el("help-overlay");
+  o.hidden = force === undefined ? !o.hidden : !force;
 }
 
 // Theme toggle: flip data-theme on <html>, persist, label the *other* theme.
@@ -176,6 +217,13 @@ function jumpNextPending() {
 // --- keyboard ---
 
 function onKey(e) {
+  // The shortcuts overlay grabs keys first: Escape or ? closes it, and nothing
+  // behind it should react while it's open.
+  if (!el("help-overlay").hidden) {
+    if (e.key === "Escape" || e.key === "?") toggleHelp(false);
+    return;
+  }
+
   const inInput = document.activeElement.tagName === "INPUT";
   if (inInput) {
     if (e.key === "Escape") document.activeElement.blur();
@@ -183,6 +231,11 @@ function onKey(e) {
       e.preventDefault();
       saveKeepAdvance();
     }
+    return;
+  }
+
+  if (e.key === "?") {
+    toggleHelp(true);
     return;
   }
 
