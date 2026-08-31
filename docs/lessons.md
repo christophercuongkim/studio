@@ -619,6 +619,31 @@ place (`hash.Format`) so copy-time hashing and `XXH64File` can't diverge — a
 mismatch silently breaks `--append` dedup and archive verify. Keep the pre-copy
 checksum only on the `--append` path.
 
+## Frontend (embedded web UIs)
+
+**An author `display` rule defeats the UA `[hidden] { display: none }` — an
+element toggled via the `hidden` attribute must also carry `#id[hidden] {
+display: none }`.**
+_Why:_ We shipped a shortcuts overlay and a bulk bar that each set
+`display: flex`; author styles beat the UA `[hidden]` rule regardless of
+specificity, so setting `el.hidden = true` did nothing — the modal was stuck
+open and couldn't be closed.
+_How to apply:_ Any element you show/hide by toggling `.hidden` in JS and also
+give a `display:` rule needs a paired `[hidden] { display: none }` guard (or use
+a `.is-open` class instead of the attribute). Grep the CSS for every
+`.hidden`-toggled id before shipping.
+
+**Verifying assets are *served* is not verifying the UI *works* — drive the
+actual DOM behavior.**
+_Why:_ For the same overlay I checked that `index.html`/`app.js`/`app.css` came
+back over HTTP and that `node --check` passed, and called it verified. The
+open/close was broken the whole time; a curl of the bytes can't catch a CSS
+cascade or event-wiring bug.
+_How to apply:_ For interactive changes, exercise the behavior (a headless
+browser, or at minimum click through it manually) before claiming done. If no
+browser is available, say so and flag the toggle logic as unverified rather than
+implying it works.
+
 ## Process (applies to every milestone)
 
 **Before cutting a milestone PR: `go build ./...`, `go vet ./...`,
