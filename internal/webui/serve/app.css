@@ -310,3 +310,14 @@ kbd {
 }
 #group { width: 180px; }
 #bulk-group { width: 140px; }
+
+/* Two independent actions in the bulk bar, visually separated so "assign group"
+   reads as distinct from "rename". */
+.bulk-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  border-left: var(--border-hairline) solid var(--border-subtle);
+}
+.bulk-action:first-of-type { border-left: none; padding-left: 0; }
