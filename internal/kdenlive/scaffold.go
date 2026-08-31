@@ -19,6 +19,12 @@ type ClipRef struct {
 // binACam is the default bin folder for clips with no explicit group.
 const binACam = "A-Cam"
 
+// externalProxyParams is Kdenlive's camcorder/external-proxy profile for studio's
+// layout: proxy at ../proxy/<stem>.mp4, original at ../originals/<stem>.MP4
+// (relative to a clip in originals/). Format is
+// proxyDir;prefix;suffix;origDir;prefix;suffix.
+const externalProxyParams = "../proxy;;.mp4;../originals;;.MP4"
+
 // folderRe matches a bin-folder property name: kdenlive:folder.<parent>.<id>,
 // capturing the parent id (group 1) and the folder's own id (group 2). A parent
 // of -1 is a root-level folder; any other parent nests the folder under it.
@@ -126,11 +132,17 @@ func Scaffold(root *Node, clips []ClipRef, projectDir string) error {
 		entries = append(entries, e)
 	}
 
-	// Turn the project-level "Proxy clips" toggle on so the pre-linked
-	// kdenlive:proxy overlays actually take effect when the project opens. Only
-	// bother if at least one clip carries a proxy.
+	// Turn on both proxy toggles so the pre-linked overlays take effect when the
+	// project opens. "enableproxy" is the master switch; "enableexternalproxy"
+	// tells Kdenlive to USE externally-provided proxies (ours) rather than only
+	// ones it generated — without it the pre-linked kdenlive:proxy is ignored and
+	// clips play the full-res original. externalproxyparams describes studio's
+	// layout (proxy under ../proxy as .mp4, original under ../originals). Only
+	// bother if at least one clip actually carries a proxy.
 	if anyProxy(clips) {
 		setDocProperty(mainBin, "kdenlive:docproperties.enableproxy", "1")
+		setDocProperty(mainBin, "kdenlive:docproperties.enableexternalproxy", "1")
+		setDocProperty(mainBin, "kdenlive:docproperties.externalproxyparams", externalProxyParams)
 	}
 
 	// Folder properties belong in main_bin alongside the existing ones (prepend

@@ -137,9 +137,16 @@ func TestScaffoldPreLinksProxy(t *testing.T) {
 		t.Errorf("b kdenlive:proxy = %q, want empty (no proxy)", got)
 	}
 
-	// Project-level proxy toggle flipped on.
+	// Both proxy toggles flipped on, and the external-proxy profile written —
+	// without enableexternalproxy Kdenlive ignores the pre-linked proxy.
 	if got := propValue(mainBin, "kdenlive:docproperties.enableproxy"); got != "1" {
 		t.Errorf("enableproxy = %q, want 1", got)
+	}
+	if got := propValue(mainBin, "kdenlive:docproperties.enableexternalproxy"); got != "1" {
+		t.Errorf("enableexternalproxy = %q, want 1", got)
+	}
+	if got := propValue(mainBin, "kdenlive:docproperties.externalproxyparams"); got != "../proxy;;.mp4;../originals;;.MP4" {
+		t.Errorf("externalproxyparams = %q, want the studio layout profile", got)
 	}
 
 	// The document root must be repointed at the project (not the template's
