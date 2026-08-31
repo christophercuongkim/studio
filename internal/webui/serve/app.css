@@ -202,6 +202,9 @@
   background: var(--overlay-scrim, rgba(0, 0, 0, 0.5));
   z-index: 10;
 }
+/* An author `display` rule overrides the UA `[hidden] { display: none }`, so the
+   hidden attribute alone can't hide a flex element — re-assert none when hidden. */
+#help-overlay[hidden] { display: none; }
 #help-card {
   background: var(--surface-card);
   border: var(--border-hairline) solid var(--border-default);
@@ -259,6 +262,8 @@ kbd {
   background: var(--surface-sunken);
   border: var(--border-hairline) solid var(--border-default);
 }
+/* Same trap as the overlay: keep `hidden` effective against the flex display. */
+#bulkbar[hidden] { display: none; }
 #bulk-count { color: var(--text-primary); font: var(--type-label); white-space: nowrap; }
 #bulkbar label {
   display: flex;
