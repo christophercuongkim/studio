@@ -3,7 +3,8 @@
 // (plan §7.2).
 
 const el = (id) => document.getElementById(id);
-const state = { man: null, cam: "", i: 0 };
+// sel: indices in the bulk selection; anchor: last-toggled index for shift-range.
+const state = { man: null, cam: "", i: 0, sel: new Set(), anchor: null };
 
 // Single source of truth for the shortcuts — feeds both the one-line hint under
 // the form and the ? overlay, so they can never drift apart. `keys` are the
@@ -18,6 +19,7 @@ const SHORTCUTS = [
   { keys: ["r"], hint: "desc", desc: "Edit the description" },
   { keys: ["enter"], hint: "save + keep", desc: "Save description and mark the clip kept" },
   { keys: ["u"], hint: "next pending", desc: "Jump to the next undecided clip" },
+  { keys: ["s"], hint: "select", desc: "Add/remove clip from the bulk selection (⇧-click a checkbox for a range)" },
   { keys: ["?"], hint: "help", desc: "Show / hide this shortcuts panel" },
 ];
 
@@ -41,6 +43,7 @@ async function init() {
   wireForm();
   wireTheme();
   wireHelp();
+  wireBulk();
   document.addEventListener("keydown", onKey);
 }
 
@@ -109,17 +112,27 @@ function renderList() {
   ul.innerHTML = "";
   state.man.clips.forEach((c, idx) => {
     const li = document.createElement("li");
-    li.className = c.review.status + (idx === state.i ? " active" : "");
+    li.className =
+      c.review.status + (idx === state.i ? " active" : "") + (state.sel.has(idx) ? " selected" : "");
     const stars = "★".repeat(c.review.rating) + "☆".repeat(5 - c.review.rating);
     li.innerHTML =
+      `<input class="pick" type="checkbox" ${state.sel.has(idx) ? "checked" : ""} aria-label="Select clip">` +
       `<span class="dot"></span>` +
       `<span class="name">${c.review.desc || c.stem}</span>` +
       `<span class="dur">${fmtDur(c.media.durationSec)}</span>` +
       `<span class="stars">${stars}</span>`;
+    // The checkbox toggles bulk selection without navigating; the rest of the
+    // row navigates as before.
+    const box = li.querySelector(".pick");
+    box.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSelect(idx, e.shiftKey);
+    });
     li.onclick = () => select(idx);
     ul.appendChild(li);
   });
   renderProgress();
+  renderBulkBar();
 }
 
 function renderProgress() {
@@ -162,20 +175,27 @@ function updatePreview() {
 
 // --- editing ---
 
+// patchClip PATCHes one clip by index and updates state in place. It does NOT
+// re-render — the caller renders once (so a bulk edit of N clips paints once).
+// Throws on failure so callers can surface it.
+async function patchClip(idx, body) {
+  const c = state.man.clips[idx];
+  const res = await fetch(`api/clips/${c.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  state.man.clips[idx] = await res.json();
+}
+
 async function patch(body) {
-  const c = clip();
   try {
-    const res = await fetch(`api/clips/${c.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return toast(await res.text());
-    state.man.clips[state.i] = await res.json();
+    await patchClip(state.i, body);
     renderList();
     updatePreview();
   } catch (e) {
-    toast("save failed");
+    toast(e.message || "save failed");
   }
 }
 
@@ -211,6 +231,78 @@ function jumpNextPending() {
   for (let k = 1; k <= n; k++) {
     const idx = (state.i + k) % n;
     if (state.man.clips[idx].review.status === "pending") return select(idx);
+  }
+}
+
+// --- bulk selection ---
+
+// toggleSelect flips idx in the selection. With range=true it fills every index
+// between the previous anchor and idx (shift-click / a spanning select).
+function toggleSelect(idx, range) {
+  if (range && state.anchor != null) {
+    const [lo, hi] = idx < state.anchor ? [idx, state.anchor] : [state.anchor, idx];
+    const add = !state.sel.has(idx); // extend in the direction of the click
+    for (let i = lo; i <= hi; i++) add ? state.sel.add(i) : state.sel.delete(i);
+  } else {
+    state.sel.has(idx) ? state.sel.delete(idx) : state.sel.add(idx);
+  }
+  state.anchor = idx;
+  renderList();
+}
+
+function clearSelection() {
+  state.sel.clear();
+  state.anchor = null;
+  renderList();
+}
+
+// renderBulkBar shows the bulk panel only when something is selected and keeps
+// its count live. Wiring happens once (wireBulk); this just toggles/updates.
+function renderBulkBar() {
+  const bar = el("bulkbar");
+  bar.hidden = state.sel.size === 0;
+  if (!bar.hidden) {
+    el("bulk-count").textContent = `${state.sel.size} selected`;
+  }
+}
+
+function wireBulk() {
+  const desc = el("bulk-desc");
+  desc.addEventListener("input", () => {
+    desc.value = desc.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  });
+  el("bulk-clear").addEventListener("click", clearSelection);
+  el("bulkbar").addEventListener("submit", (e) => {
+    e.preventDefault();
+    applyBulk();
+  });
+}
+
+// applyBulk writes the one description across every selected clip (in list
+// order), optionally numbering takes _t1.._tN, and marks them kept. One paint
+// at the end. A single failed PATCH stops the run and reports which clip.
+async function applyBulk() {
+  const idxs = [...state.sel].sort((a, b) => a - b);
+  if (!idxs.length) return;
+  const descVal = el("bulk-desc").value;
+  if (!descVal) return toast("enter a description first");
+  const autoTake = el("bulk-take").checked;
+  el("bulk-apply").disabled = true;
+  try {
+    for (let n = 0; n < idxs.length; n++) {
+      const body = { desc: descVal, status: "kept" };
+      if (autoTake) body.take = n + 1;
+      await patchClip(idxs[n], body);
+    }
+    toast(`updated ${idxs.length} clip(s)`);
+    clearSelection();
+    el("bulk-desc").value = "";
+    select(state.i); // refresh the open clip's fields/preview if it was in the set
+  } catch (e) {
+    toast(e.message || "bulk update failed");
+    renderList();
+  } finally {
+    el("bulk-apply").disabled = false;
   }
 }
 
@@ -251,6 +343,7 @@ function onKey(e) {
     case "x": toggleReject(); break;
     case "r": e.preventDefault(); descInput.focus(); break;
     case "u": jumpNextPending(); break;
+    case "s": toggleSelect(state.i, e.shiftKey); break;
   }
 }
 

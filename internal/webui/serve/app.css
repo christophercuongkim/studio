@@ -52,7 +52,7 @@
 }
 #cliplist li {
   display: grid;
-  grid-template-columns: var(--space-4) 1fr auto;
+  grid-template-columns: auto var(--space-4) 1fr auto;
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) var(--space-5);
@@ -66,6 +66,10 @@
   background: var(--surface-selected);
   border-left-color: var(--border-accent);
 }
+/* Bulk-selected rows: a left accent bar so they're scannable in the list even
+   when not the active clip (the checked box is the definitive indicator). */
+#cliplist li.selected { border-left-color: var(--border-accent); }
+#cliplist li .pick { cursor: pointer; margin: 0; }
 #cliplist li:active { transform: scale(var(--press-scale)); }
 
 /* Status dot — colour by review state, never an emoji/glyph. */
@@ -89,7 +93,7 @@
 #cliplist li.rejected .name { color: var(--text-tertiary); }
 #cliplist li .dur { color: var(--text-tertiary); font: var(--type-caption); }
 #cliplist li .stars {
-  grid-column: 2 / 4;
+  grid-column: 3 / 5;
   color: var(--text-accent);
   font: var(--type-caption);
   letter-spacing: var(--tracking-wide);
@@ -244,3 +248,46 @@ kbd {
   background: var(--surface-inset);
   border: var(--border-hairline) solid var(--border-default);
 }
+
+/* --- Bulk-edit bar (shown when clips are multi-selected) --- */
+#bulkbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-sunken);
+  border: var(--border-hairline) solid var(--border-default);
+}
+#bulk-count { color: var(--text-primary); font: var(--type-label); white-space: nowrap; }
+#bulkbar label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font: var(--type-label);
+}
+#bulkbar label.inline { flex-direction: row; }
+#bulk-desc {
+  color: var(--text-primary);
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-none);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  font: var(--type-body-sm);
+}
+#bulkbar button {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-none);
+  background: var(--fill-neutral);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: var(--type-label);
+  transition: var(--transition-control);
+}
+#bulkbar button:hover { background: var(--fill-neutral-hover); color: var(--text-primary); }
+#bulkbar button.primary { background: var(--fill-accent); color: var(--on-accent); border-color: var(--fill-accent); }
+#bulkbar button:disabled { opacity: 0.5; cursor: default; }
