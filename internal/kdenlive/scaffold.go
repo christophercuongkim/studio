@@ -34,10 +34,18 @@ var idRe = regexp.MustCompile(`(\d+)$`)
 // the same parent, or creates a new kdenlive:folder property parented correctly.
 // Ungrouped clips route to A-Cam if it exists, else the bin root. It mutates root
 // in place.
-func Scaffold(root *Node, clips []ClipRef) error {
+func Scaffold(root *Node, clips []ClipRef, projectDir string) error {
 	mainBin := root.Find("playlist", "id", "main_bin")
 	if mainBin == nil {
 		return fmt.Errorf("template has no <playlist id=\"main_bin\"> — not a Kdenlive project bin")
+	}
+
+	// Repoint the document root at the project: the template ships with its own
+	// authoring path (e.g. ~/Videos/Templates), against which our project-relative
+	// resource/proxy paths would resolve to nowhere. Kdenlive stores root as the
+	// project folder, so match that.
+	if projectDir != "" {
+		root.SetAttr("root", projectDir)
 	}
 
 	// index keys a folder by parent-id + name → its own id, so a name can repeat

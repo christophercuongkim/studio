@@ -55,7 +55,7 @@ func TestScaffoldRoutesByGroup(t *testing.T) {
 		{Resource: "/abs/originals/br.mp4", DurationSec: 3.0, Group: "B-Roll"},         // reuse template folder 3
 		{Resource: "/abs/originals/misc.mp4", DurationSec: 1.0, Group: ""},             // ungrouped → A-Cam (2)
 	}
-	if err := Scaffold(root, clips); err != nil {
+	if err := Scaffold(root, clips, "/proj"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -115,7 +115,7 @@ func TestScaffoldPreLinksProxy(t *testing.T) {
 		{Resource: "/p/originals/a.MP4", Proxy: "proxy/a.mp4", DurationSec: 2}, // relative proxy
 		{Resource: "/p/originals/b.MP4", Proxy: "", DurationSec: 2},            // no proxy
 	}
-	if err := Scaffold(root, clips); err != nil {
+	if err := Scaffold(root, clips, "/proj"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,6 +136,13 @@ func TestScaffoldPreLinksProxy(t *testing.T) {
 	if got := propValue(mainBin, "kdenlive:docproperties.enableproxy"); got != "1" {
 		t.Errorf("enableproxy = %q, want 1", got)
 	}
+
+	// The document root must be repointed at the project (not the template's
+	// authoring path), or every project-relative path resolves to nowhere and
+	// Kdenlive reports all clips missing.
+	if got, _ := root.Attr("root"); got != "/proj" {
+		t.Errorf("mlt root = %q, want /proj (the project dir)", got)
+	}
 }
 
 // TestScaffoldEnableProxyReplacesTemplateZero guards the update-in-place path: a
@@ -145,7 +152,7 @@ func TestScaffoldEnableProxyReplacesTemplateZero(t *testing.T) {
 	mainBin := root.Find("playlist", "id", "main_bin")
 	mainBin.Children = append([]*Node{prop("kdenlive:docproperties.enableproxy", "0")}, mainBin.Children...)
 
-	if err := Scaffold(root, []ClipRef{{Resource: "/p/originals/a.MP4", Proxy: "/p/proxy/a.mp4"}}); err != nil {
+	if err := Scaffold(root, []ClipRef{{Resource: "originals/a.MP4", Proxy: "proxy/a.mp4"}}, "/proj"); err != nil {
 		t.Fatal(err)
 	}
 	n := 0
@@ -166,7 +173,7 @@ func TestScaffoldEnableProxyReplacesTemplateZero(t *testing.T) {
 
 func TestScaffoldNoMainBin(t *testing.T) {
 	root, _ := Load([]byte(`<?xml version='1.0'?><mlt><profile/></mlt>`))
-	err := Scaffold(root, []ClipRef{{Resource: "x.mp4"}})
+	err := Scaffold(root, []ClipRef{{Resource: "x.mp4"}}, "/proj")
 	if err == nil || !strings.Contains(err.Error(), "main_bin") {
 		t.Fatalf("expected main_bin error, got %v", err)
 	}
@@ -185,7 +192,7 @@ func TestScaffoldNestedGroups(t *testing.T) {
 		{Resource: "/abs/c.mp4", DurationSec: 1, Group: "london/b_roll"}, // reuse both levels
 		{Resource: "/abs/d.mp4", DurationSec: 1, Group: "paris/day1/market"},
 	}
-	if err := Scaffold(root, clips); err != nil {
+	if err := Scaffold(root, clips, "/proj"); err != nil {
 		t.Fatal(err)
 	}
 
