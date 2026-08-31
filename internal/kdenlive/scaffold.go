@@ -11,7 +11,7 @@ import (
 // ClipRef is one clip to place in the project bin.
 type ClipRef struct {
 	Resource    string // absolute path to the original media
-	Proxy       string // absolute path to the low-res proxy, or "" if none
+	Proxy       string // project-relative path to the low-res proxy, or "" if none
 	DurationSec float64
 	Group       string // bin folder to route into; empty routes to A-Cam
 }
@@ -101,14 +101,12 @@ func Scaffold(root *Node, clips []ClipRef) error {
 		}
 		// Pre-link studio's proxy so Kdenlive uses it directly instead of running
 		// its (unreliable) external-proxy match or regenerating one. resource
-		// stays the original; kdenlive:proxy overlays the low-res file, matching
-		// exactly how Kdenlive serialises a proxied clip. Needs enableproxy=1
-		// (set on main_bin below) to take effect.
+		// stays the original; kdenlive:proxy overlays the project-relative
+		// low-res file — matching exactly how Kdenlive serialises a proxied clip
+		// (relative path, no originalurl on the base producer). Needs
+		// enableproxy=1 (set on main_bin below) to take effect.
 		if c.Proxy != "" {
-			p.Children = append(p.Children,
-				prop("kdenlive:proxy", c.Proxy),
-				prop("kdenlive:originalurl", c.Resource),
-			)
+			p.Children = append(p.Children, prop("kdenlive:proxy", c.Proxy))
 		}
 		producers = append(producers, p)
 

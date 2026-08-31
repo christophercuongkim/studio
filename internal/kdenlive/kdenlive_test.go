@@ -112,19 +112,16 @@ func TestScaffoldPreLinksProxy(t *testing.T) {
 	mainBin := root.Find("playlist", "id", "main_bin")
 
 	clips := []ClipRef{
-		{Resource: "/p/originals/a.MP4", Proxy: "/p/proxy/a.mp4", DurationSec: 2},
-		{Resource: "/p/originals/b.MP4", Proxy: "", DurationSec: 2}, // no proxy
+		{Resource: "/p/originals/a.MP4", Proxy: "proxy/a.mp4", DurationSec: 2}, // relative proxy
+		{Resource: "/p/originals/b.MP4", Proxy: "", DurationSec: 2},            // no proxy
 	}
 	if err := Scaffold(root, clips); err != nil {
 		t.Fatal(err)
 	}
 
 	a := findProducerByResource(root, "/p/originals/a.MP4")
-	if got := propValue(a, "kdenlive:proxy"); got != "/p/proxy/a.mp4" {
-		t.Errorf("a kdenlive:proxy = %q, want /p/proxy/a.mp4", got)
-	}
-	if got := propValue(a, "kdenlive:originalurl"); got != "/p/originals/a.MP4" {
-		t.Errorf("a kdenlive:originalurl = %q, want the original", got)
+	if got := propValue(a, "kdenlive:proxy"); got != "proxy/a.mp4" {
+		t.Errorf("a kdenlive:proxy = %q, want proxy/a.mp4 (project-relative)", got)
 	}
 	if got := propValue(a, "resource"); got != "/p/originals/a.MP4" {
 		t.Errorf("a resource = %q, want the original (proxy is an overlay)", got)
