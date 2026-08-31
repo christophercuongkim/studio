@@ -126,6 +126,11 @@ func TestScaffoldPreLinksProxy(t *testing.T) {
 	if got := propValue(a, "resource"); got != "/p/originals/a.MP4" {
 		t.Errorf("a resource = %q, want the original (proxy is an overlay)", got)
 	}
+	// A proxied clip needs originalurl so Kdenlive can locate the source; without
+	// it the clip loads as "missing source, proxy available".
+	if got := propValue(a, "kdenlive:originalurl"); got != "/p/originals/a.MP4" {
+		t.Errorf("a kdenlive:originalurl = %q, want the original path", got)
+	}
 
 	b := findProducerByResource(root, "/p/originals/b.MP4")
 	if got := propValue(b, "kdenlive:proxy"); got != "" {

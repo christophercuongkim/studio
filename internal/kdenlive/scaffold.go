@@ -109,12 +109,16 @@ func Scaffold(root *Node, clips []ClipRef, projectDir string) error {
 		}
 		// Pre-link studio's proxy so Kdenlive uses it directly instead of running
 		// its (unreliable) external-proxy match or regenerating one. resource
-		// stays the original; kdenlive:proxy overlays the project-relative
-		// low-res file — matching exactly how Kdenlive serialises a proxied clip
-		// (relative path, no originalurl on the base producer). Needs
+		// stays the original; kdenlive:proxy overlays the project-relative low-res
+		// file, and kdenlive:originalurl records where the source lives — without
+		// it Kdenlive reports "missing source, proxy available". Both paths are
+		// project-relative, matching how Kdenlive serialises a proxied clip. Needs
 		// enableproxy=1 (set on main_bin below) to take effect.
 		if c.Proxy != "" {
-			p.Children = append(p.Children, prop("kdenlive:proxy", c.Proxy))
+			p.Children = append(p.Children,
+				prop("kdenlive:proxy", c.Proxy),
+				prop("kdenlive:originalurl", c.Resource),
+			)
 		}
 		producers = append(producers, p)
 
