@@ -142,13 +142,12 @@ func Scaffold(dir, templatePath, outPath string) (*Result, error) {
 		if c.Review.Status != manifest.StatusKept || !c.Applied.Done {
 			continue
 		}
-		proxy := ""
-		if c.Files.Proxy != "" {
-			proxy = filepath.Join(absProject, c.Files.Proxy)
-		}
+		// The proxy path is project-relative (e.g. "proxy/<stem>.mp4"): Kdenlive
+		// resolves kdenlive:proxy relative to the project and ignores an absolute
+		// path, so it must match how Kdenlive itself stores it.
 		clips = append(clips, kdenlive.ClipRef{
 			Resource:    filepath.Join(absProject, c.Files.Original),
-			Proxy:       proxy,
+			Proxy:       c.Files.Proxy,
 			DurationSec: c.Media.DurationSec,
 			Group:       c.Review.Group,
 		})
