@@ -142,11 +142,12 @@ func Scaffold(dir, templatePath, outPath string) (*Result, error) {
 		if c.Review.Status != manifest.StatusKept || !c.Applied.Done {
 			continue
 		}
-		// The proxy path is project-relative (e.g. "proxy/<stem>.mp4"): Kdenlive
-		// resolves kdenlive:proxy relative to the project and ignores an absolute
-		// path, so it must match how Kdenlive itself stores it.
+		// Both paths are project-relative; the mlt root is set to the project dir
+		// (below), matching how Kdenlive stores originals and proxies. An absolute
+		// kdenlive:proxy is ignored by Kdenlive, and a template's stale root would
+		// otherwise resolve these to nowhere.
 		clips = append(clips, kdenlive.ClipRef{
-			Resource:    filepath.Join(absProject, c.Files.Original),
+			Resource:    c.Files.Original,
 			Proxy:       c.Files.Proxy,
 			DurationSec: c.Media.DurationSec,
 			Group:       c.Review.Group,
@@ -164,7 +165,7 @@ func Scaffold(dir, templatePath, outPath string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := kdenlive.Scaffold(root, clips); err != nil {
+	if err := kdenlive.Scaffold(root, clips, absProject); err != nil {
 		return nil, err
 	}
 	if err := os.WriteFile(outPath, root.Render(), 0o644); err != nil {
