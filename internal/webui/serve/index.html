@@ -36,10 +36,15 @@
       <div id="meta" class="tnum"></div>
       <form id="bulkbar" autocomplete="off" hidden>
         <span id="bulk-count"></span>
-        <label>Description <input id="bulk-desc" type="text" maxlength="40" placeholder="market-b-roll"></label>
-        <label>Bin group <input id="bulk-group" type="text" maxlength="40" placeholder="Interviews" list="group-list"></label>
-        <label class="inline"><input id="bulk-take" type="checkbox" checked> auto-number takes (_t1, _t2…)</label>
-        <button id="bulk-apply" type="submit" class="primary">Apply + keep</button>
+        <div class="bulk-action">
+          <label>Description <input id="bulk-desc" type="text" maxlength="40" placeholder="market-b-roll"></label>
+          <label class="inline"><input id="bulk-take" type="checkbox" checked> auto-number takes (_t1, _t2…)</label>
+          <button id="bulk-apply-names" type="button" class="primary">Rename + keep</button>
+        </div>
+        <div class="bulk-action">
+          <label>Bin group <input id="bulk-group" type="text" maxlength="40" placeholder="Interviews" list="group-list"></label>
+          <button id="bulk-apply-group" type="button">Assign group</button>
+        </div>
         <button id="bulk-clear" type="button">Clear</button>
       </form>
       <form id="nameform" autocomplete="off">

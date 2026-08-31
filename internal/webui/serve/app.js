@@ -185,6 +185,14 @@ function updatePreview() {
   el("preview").textContent = finalName(clip());
 }
 
+// normalizeGroup turns typed text into a legal bin-group token: whitespace runs
+// collapse to a single underscore, any other disallowed char is dropped, and
+// leading _/- are trimmed so it starts alphanumeric. Mirrors the server's
+// naming.ValidateGroup so a value never round-trips to a 400.
+function normalizeGroup(s) {
+  return s.replace(/\s+/g, "_").replace(/[^A-Za-z0-9_-]/g, "").replace(/^[_-]+/, "");
+}
+
 // --- editing ---
 
 // patchClip PATCHes one clip by index and updates state in place. It does NOT
@@ -228,11 +236,11 @@ function wireForm() {
     clip().review.take = Number.isFinite(v) && v > 0 ? v : null;
     updatePreview();
   });
-  // Group: strip disallowed chars as typed (letters/digits/_/-; no spaces so it
-  // stays a single CLI token). Persist on change (blur / Enter), not per keystroke
-  // — it doesn't affect the filename preview, so there's nothing to live-update.
+  // Group: normalize as typed — spaces become underscores (so a group stays a
+  // single CLI token) and any other disallowed char is dropped. Persist on change
+  // (blur / Enter), not per keystroke — it doesn't affect the filename preview.
   groupInput.addEventListener("input", () => {
-    groupInput.value = groupInput.value.replace(/[^A-Za-z0-9_-]/g, "");
+    groupInput.value = normalizeGroup(groupInput.value);
   });
   groupInput.addEventListener("change", () => {
     patch({ group: groupInput.value });
@@ -292,48 +300,69 @@ function wireBulk() {
     e.target.value = e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
   });
   el("bulk-group").addEventListener("input", (e) => {
-    e.target.value = e.target.value.replace(/[^A-Za-z0-9_-]/g, "");
+    e.target.value = normalizeGroup(e.target.value);
   });
   el("bulk-clear").addEventListener("click", clearSelection);
-  el("bulkbar").addEventListener("submit", (e) => {
-    e.preventDefault();
-    applyBulk();
+  // Rename and grouping are deliberately separate buttons: assigning a bin group
+  // must never also rewrite descriptions, so a stray value in one field can't
+  // ride along with the other action.
+  el("bulk-apply-names").addEventListener("click", applyBulkNames);
+  el("bulk-apply-group").addEventListener("click", applyBulkGroup);
+  // Enter in a field runs only that field's action; the form itself never
+  // submits (which would reload the page).
+  el("bulkbar").addEventListener("submit", (e) => e.preventDefault());
+  el("bulk-desc").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); applyBulkNames(); }
+  });
+  el("bulk-group").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); applyBulkGroup(); }
   });
 }
 
-// applyBulk writes whichever of {description, bin group} are filled across every
-// selected clip (in list order), optionally numbering takes _t1.._tN when a
-// description is set, and marks them kept. One paint at the end; a single failed
-// PATCH stops the run and reports which clip.
-async function applyBulk() {
+// bulkRun applies makeBody(n) to each selected clip in list order (n is the
+// clip's 0-based position within the selection), repainting once. A single
+// failed PATCH stops the run and reports which clip. btnId is disabled during.
+async function bulkRun(makeBody, okMsg, btnId) {
   const idxs = [...state.sel].sort((a, b) => a - b);
-  if (!idxs.length) return;
-  const descVal = el("bulk-desc").value;
-  const groupVal = el("bulk-group").value;
-  if (!descVal && !groupVal) return toast("enter a description or bin group first");
-  const autoTake = el("bulk-take").checked;
-  el("bulk-apply").disabled = true;
+  if (!idxs.length) return false;
+  el(btnId).disabled = true;
   try {
-    for (let n = 0; n < idxs.length; n++) {
-      const body = { status: "kept" };
-      if (descVal) {
-        body.desc = descVal;
-        if (autoTake) body.take = n + 1;
-      }
-      if (groupVal) body.group = groupVal;
-      await patchClip(idxs[n], body);
-    }
-    toast(`updated ${idxs.length} clip(s)`);
+    for (let n = 0; n < idxs.length; n++) await patchClip(idxs[n], makeBody(n));
+    toast(okMsg(idxs.length));
     clearSelection();
-    el("bulk-desc").value = "";
-    el("bulk-group").value = "";
     select(state.i); // refresh the open clip's fields/preview if it was in the set
+    return true;
   } catch (e) {
     toast(e.message || "bulk update failed");
     renderList();
+    return false;
   } finally {
-    el("bulk-apply").disabled = false;
+    el(btnId).disabled = false;
   }
+}
+
+// applyBulkNames sets the description (and optional auto-numbered takes) on the
+// selection and marks them kept. Does not touch bin group.
+async function applyBulkNames() {
+  const descVal = el("bulk-desc").value;
+  if (!descVal) return toast("enter a description first");
+  const autoTake = el("bulk-take").checked;
+  const ok = await bulkRun(
+    (n) => (autoTake ? { desc: descVal, take: n + 1, status: "kept" } : { desc: descVal, status: "kept" }),
+    (k) => `renamed ${k} clip(s)`,
+    "bulk-apply-names",
+  );
+  if (ok) el("bulk-desc").value = "";
+}
+
+// applyBulkGroup assigns the bin group to the selection. Does not rename or
+// change keep/reject — grouping is isolated so it can't accidentally rewrite
+// descriptions.
+async function applyBulkGroup() {
+  const groupVal = el("bulk-group").value;
+  if (!groupVal) return toast("enter a bin group first");
+  const ok = await bulkRun(() => ({ group: groupVal }), (k) => `grouped ${k} clip(s)`, "bulk-apply-group");
+  if (ok) el("bulk-group").value = "";
 }
 
 // --- keyboard ---
