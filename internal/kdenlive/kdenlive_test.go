@@ -43,47 +43,64 @@ func TestRoundTripStable(t *testing.T) {
 	}
 }
 
-func TestScaffoldInjectsAndRoutesByRating(t *testing.T) {
+func TestScaffoldRoutesByGroup(t *testing.T) {
 	root := loadTemplate(t)
 	beforeProducers := countTag(root, "producer")
+	mainBin := root.Find("playlist", "id", "main_bin")
+	beforeFolders := countFolders(mainBin)
 
 	clips := []ClipRef{
-		{Resource: "/abs/originals/hero.mp4", DurationSec: 42.36, Rating: 5}, // → Selects
-		{Resource: "/abs/originals/b.mp4", DurationSec: 3.0, Rating: 2},      // → A-Cam
+		{Resource: "/abs/originals/int1.mp4", DurationSec: 42.36, Group: "Interviews"}, // new folder
+		{Resource: "/abs/originals/int2.mp4", DurationSec: 5.0, Group: "Interviews"},   // same new folder
+		{Resource: "/abs/originals/br.mp4", DurationSec: 3.0, Group: "B-Roll"},         // reuse template folder 3
+		{Resource: "/abs/originals/misc.mp4", DurationSec: 1.0, Group: ""},             // ungrouped → A-Cam (2)
 	}
 	if err := Scaffold(root, clips); err != nil {
 		t.Fatal(err)
 	}
 
-	// Two new producers.
-	if got := countTag(root, "producer"); got != beforeProducers+2 {
-		t.Errorf("producer count = %d, want %d", got, beforeProducers+2)
+	// Four new producers.
+	if got := countTag(root, "producer"); got != beforeProducers+4 {
+		t.Errorf("producer count = %d, want %d", got, beforeProducers+4)
 	}
-	// main_bin gained two entries (had one).
-	mainBin := root.Find("playlist", "id", "main_bin")
-	if got := countDirectTag(mainBin, "entry"); got != 3 {
-		t.Errorf("main_bin entries = %d, want 3", got)
+	// main_bin gained four entries (the template had one).
+	if got := countDirectTag(mainBin, "entry"); got != 5 {
+		t.Errorf("main_bin entries = %d, want 5", got)
+	}
+	// Exactly one new bin folder was created (Interviews); B-Roll was reused.
+	if got := countFolders(mainBin); got != beforeFolders+1 {
+		t.Errorf("bin folders = %d, want %d (only Interviews is new)", got, beforeFolders+1)
+	}
+	folders := binFolders(mainBin)
+	interviewsID, ok := folders["Interviews"]
+	if !ok {
+		t.Fatal("Interviews folder was not created")
 	}
 
-	// Ids must not collide with the existing producer7.
-	if root.Find("producer", "id", "producer8") == nil {
-		t.Error("expected new producer id to continue past existing max (producer8)")
+	// Routing: both interviews → the new folder; B-Roll → existing folder 3;
+	// ungrouped → A-Cam (2).
+	for _, res := range []string{"/abs/originals/int1.mp4", "/abs/originals/int2.mp4"} {
+		if fid := propValue(findProducerByResource(root, res), "kdenlive:folderid"); fid != interviewsID {
+			t.Errorf("%s folderid = %q, want %q (Interviews)", res, fid, interviewsID)
+		}
+	}
+	if fid := propValue(findProducerByResource(root, "/abs/originals/br.mp4"), "kdenlive:folderid"); fid != "3" {
+		t.Errorf("b-roll folderid = %q, want 3 (reused B-Roll)", fid)
+	}
+	if fid := propValue(findProducerByResource(root, "/abs/originals/misc.mp4"), "kdenlive:folderid"); fid != "2" {
+		t.Errorf("ungrouped folderid = %q, want 2 (A-Cam)", fid)
 	}
 
-	// Rating routing: hero → Selects (folder 5), b → A-Cam (folder 2).
-	hero := findProducerByResource(root, "/abs/originals/hero.mp4")
-	if hero == nil {
-		t.Fatal("hero producer missing")
+	// The created folder id must not collide with any producer id or existing
+	// folder id (existing folders run 2–5, producers up through 7).
+	if interviewsID == "2" || interviewsID == "3" || interviewsID == "4" || interviewsID == "5" {
+		t.Errorf("Interviews folder id %q collides with an existing folder id", interviewsID)
 	}
-	if fid := propValue(hero, "kdenlive:folderid"); fid != "5" {
-		t.Errorf("hero folderid = %q, want 5 (Selects)", fid)
-	}
-	if out, _ := hero.Attr("out"); out != "00:00:42.360" {
-		t.Errorf("hero out timecode = %q, want 00:00:42.360", out)
-	}
-	b := findProducerByResource(root, "/abs/originals/b.mp4")
-	if fid := propValue(b, "kdenlive:folderid"); fid != "2" {
-		t.Errorf("b folderid = %q, want 2 (A-Cam)", fid)
+	for _, res := range []string{"/abs/originals/int1.mp4"} {
+		p := findProducerByResource(root, res)
+		if id := propValue(p, "kdenlive:id"); id == interviewsID {
+			t.Errorf("producer id %q collides with the Interviews folder id", id)
+		}
 	}
 }
 
@@ -168,6 +185,19 @@ func countDirectTag(n *Node, tag string) int {
 	for _, ch := range n.Children {
 		if ch.Name == tag {
 			c++
+		}
+	}
+	return c
+}
+
+// countFolders counts kdenlive:folder.* properties directly under a node.
+func countFolders(n *Node) int {
+	c := 0
+	for _, ch := range n.Children {
+		if ch.Name == "property" {
+			if name, _ := ch.Attr("name"); folderRe.MatchString(name) {
+				c++
+			}
 		}
 	}
 	return c

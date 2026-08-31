@@ -28,6 +28,30 @@ func ValidateDesc(desc string) error {
 	return nil
 }
 
+// MaxGroupLen bounds a bin-folder (group) name.
+const MaxGroupLen = 40
+
+// groupRe is the allowed charset for a bin-folder name. Mixed case is allowed
+// (these are Kdenlive display names), but no spaces — a group is typeable as a
+// single CLI token — and it must start alphanumeric so a name is never blank or
+// punctuation-only.
+var groupRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+
+// ValidateGroup reports whether group is a legal bin-folder name. Empty is legal
+// and means "ungrouped" (the caller routes those to the default bin).
+func ValidateGroup(group string) error {
+	if group == "" {
+		return nil
+	}
+	if len(group) > MaxGroupLen {
+		return fmt.Errorf("group too long (%d > %d chars)", len(group), MaxGroupLen)
+	}
+	if !groupRe.MatchString(group) {
+		return fmt.Errorf("group must match [A-Za-z0-9_-] and start alphanumeric (got %q)", group)
+	}
+	return nil
+}
+
 // FinalStem builds the final filename stem (no extension) for a clip:
 //
 //	{date}_{cam}{seq}_{desc}[_t{take}]

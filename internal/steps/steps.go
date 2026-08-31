@@ -145,7 +145,7 @@ func Scaffold(dir, templatePath, outPath string) (*Result, error) {
 		clips = append(clips, kdenlive.ClipRef{
 			Resource:    filepath.Join(absProject, c.Files.Original),
 			DurationSec: c.Media.DurationSec,
-			Rating:      c.Review.Rating,
+			Group:       c.Review.Group,
 		})
 	}
 	if len(clips) == 0 {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -177,6 +178,19 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request) {
 			take = nil // non-positive clears the take
 		}
 		clip.Review.Take = take
+	}
+	if v, ok := raw["group"]; ok {
+		var group string
+		if err := json.Unmarshal(v, &group); err != nil {
+			httpError(w, http.StatusBadRequest, "group: %v", err)
+			return
+		}
+		group = strings.TrimSpace(group)
+		if err := naming.ValidateGroup(group); err != nil {
+			httpError(w, http.StatusBadRequest, "%v", err)
+			return
+		}
+		clip.Review.Group = group // empty clears (ungrouped → default bin)
 	}
 
 	now := s.now()

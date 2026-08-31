@@ -91,6 +91,7 @@ type Review struct {
 	Rating     int        `json:"rating"` // 0–5
 	Desc       string     `json:"desc"`   // slug fragment; charset enforced in serve
 	Take       *int       `json:"take"`   // optional take number
+	Group      string     `json:"group"`  // Kdenlive bin folder; empty = A-Cam; charset enforced in serve
 	ReviewedAt *time.Time `json:"reviewedAt"`
 }
 

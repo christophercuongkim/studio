@@ -130,7 +130,7 @@
 
 #meta { color: var(--text-secondary); font: var(--type-data); }
 
-#nameform .row { display: flex; gap: var(--space-6); }
+#nameform .row { display: flex; flex-wrap: wrap; gap: var(--space-6); }
 #nameform label {
   display: flex;
   flex-direction: column;
@@ -273,7 +273,8 @@ kbd {
   font: var(--type-label);
 }
 #bulkbar label.inline { flex-direction: row; }
-#bulk-desc {
+#bulk-desc,
+#bulk-group {
   color: var(--text-primary);
   background: var(--surface-card);
   border: var(--border-hairline) solid var(--border-default);
@@ -296,3 +297,16 @@ kbd {
 #bulkbar button:hover { background: var(--fill-neutral-hover); color: var(--text-primary); }
 #bulkbar button.primary { background: var(--fill-accent); color: var(--on-accent); border-color: var(--fill-accent); }
 #bulkbar button:disabled { opacity: 0.5; cursor: default; }
+
+/* --- Bin group: sidebar tag + name-form field --- */
+#cliplist li .grp {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  background: var(--surface-inset);
+  border: var(--border-hairline) solid var(--border-subtle);
+  white-space: nowrap;
+}
+#group { width: 180px; }
+#bulk-group { width: 140px; }
