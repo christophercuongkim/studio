@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -146,17 +145,11 @@ func Scaffold(dir, templatePath, outPath string) (*Result, error) {
 		// Both paths are project-relative; the mlt root is set to the project dir
 		// (below), matching how Kdenlive stores originals and proxies. An absolute
 		// kdenlive:proxy is ignored by Kdenlive, and a template's stale root would
-		// otherwise resolve these to nowhere. The probe fields feed the
-		// active-proxy chain's original snapshot.
-		fps, _ := strconv.ParseFloat(c.Media.FPS, 64)
+		// otherwise resolve these to nowhere.
 		clips = append(clips, kdenlive.ClipRef{
 			Resource:    c.Files.Original,
 			Proxy:       c.Files.Proxy,
 			DurationSec: c.Media.DurationSec,
-			FPS:         fps,
-			Width:       c.Media.Width,
-			Height:      c.Media.Height,
-			HasAudio:    c.Media.HasAudio,
 			Group:       c.Review.Group,
 		})
 	}
