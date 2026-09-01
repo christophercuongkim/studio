@@ -210,6 +210,55 @@ normalizing whitespace loses nothing that matters.
 _How to apply:_ The node tree preserves structure and attribute order; tests
 assert counts/values, not bytes.
 
+**An *active* proxy is a `<chain>` whose `resource` IS the proxy — not a producer
+with a `kdenlive:proxy` overlay.**
+_Why:_ Setting `resource=<original>` + `kdenlive:proxy=<proxy>` only tells
+Kdenlive the proxy *exists*; it keeps playing the full-res original (no badge,
+slow). Days were lost assuming the overlay activated it.
+_How to apply:_ For a proxied clip emit a `<chain>` with `resource=<proxy>`,
+`kdenlive:originalurl=<original>`, and a `kdenlive:original.*` snapshot
+(resource/width/height/in/out/length, from the manifest's probe data) so render
+restores full-res. Bin `<entry>` references the chain id. Clips without a proxy
+stay plain `<producer>`s on the original.
+
+**Kdenlive has two proxy switches; external proxies need both.**
+_Why:_ `kdenlive:docproperties.enableproxy` ("Proxy clips") only governs proxies
+Kdenlive *generates*. Externally-provided proxies are gated behind
+`enableexternalproxy` ("Camcorder proxy clips") + `externalproxyparams`. With
+only the first set, a pre-linked proxy is ignored and "Proxy Clip" *regenerates*
+into `~/.cache/kdenlive/` instead of linking ours.
+_How to apply:_ Set `enableproxy=1`, `enableexternalproxy=1`, and
+`externalproxyparams=../proxy;;.mp4;../originals;;.MP4` when any clip has a proxy.
+
+**Repoint every template value tied to where the template was authored.**
+_Why:_ A template carries `root`, `kdenlive:docproperties.documentid`, and
+`kdenlive:docproperties.browserurl` from its authoring machine. A stale `root`
+makes every relative path resolve to nowhere ("all clips missing"); a shared
+`documentid` (every project inherits the template's) collides Kdenlive's
+per-project caches.
+_How to apply:_ In `Scaffold`, set `root` to the project dir and derive a unique
+`documentid` from the project path (xxhash — stable across regenerates, distinct
+per project); repoint `browserurl`. Leave the profile and bin folders alone.
+
+**Paths in a proxied clip are project-relative; `resource` proved absolute is not
+enough.**
+_Why:_ Kdenlive resolves `kdenlive:proxy` (and friends) relative to the project
+`root`; an absolute value is silently ignored. "Missing source, proxy available"
+specifically means the proxy resolved but `kdenlive:originalurl` was absent/wrong.
+_How to apply:_ Write `originals/<stem>.MP4`, `proxy/<stem>.mp4` (relative) with
+`root=<projectDir>`. Use `avformat-novalidate` on the chain so a 100+ clip
+project doesn't re-open every proxy on load.
+
+**When you can't run the GUI, get one real working artifact and match it
+field-for-field — don't invent the format.**
+_Why:_ Every guessed proxy structure failed (wrong paths, missing originalurl,
+inactive overlay) until the user imported one clip in Kdenlive and saved: that
+file was the ground truth for the active-proxy `<chain>`.
+_How to apply:_ Ask for (or produce) one real saved `.kdenlive` exercising the
+feature, diff your output against it, and only ship what matches. Verifying the
+bytes are *served* or that the XML *parses* is not verifying Kdenlive *accepts*
+it — that stays a manual GUI check.
+
 ---
 
 ## CHR-11 — new + video.yaml
