@@ -13,10 +13,6 @@ type ClipRef struct {
 	Resource    string // absolute path to the original media
 	Proxy       string // project-relative path to the low-res proxy, or "" if none
 	DurationSec float64
-	FPS         float64 // frame rate, for the frame-count math in a proxied chain
-	Width       int
-	Height      int
-	HasAudio    bool
 	Group       string // bin folder to route into; empty routes to A-Cam
 }
 
@@ -100,35 +96,40 @@ func Scaffold(root *Node, clips []ClipRef, projectDir string) error {
 		leafID[i] = ensurePath(c.Group)
 	}
 
-	// Pass 2: build one bin element per clip, routed to its leaf folder.
-	// A clip with a proxy becomes an active-proxy <chain> (resource = the proxy,
-	// original preserved in a kdenlive:original.* snapshot); without a proxy it's
-	// a plain <producer> pointing at the original.
-	var elems []*Node
+	// Pass 2: build producers and their bin entries, routed to their leaf folder.
+	var producers []*Node
 	var entries []*Node
 	for i, c := range clips {
 		id := nextID
 		nextID++
+		pid := fmt.Sprintf("producer%d", id)
 		tc := secondsToTimecode(c.DurationSec)
 
-		var el *Node
-		var refID string
-		if c.Proxy != "" {
-			refID = fmt.Sprintf("chain%d", id)
-			el = proxiedChain(refID, id, leafID[i], tc, c)
-		} else {
-			refID = fmt.Sprintf("producer%d", id)
-			el = &Node{Name: "producer", Attrs: attrs("id", refID, "out", tc)}
-			el.Children = []*Node{
-				prop("resource", c.Resource),
-				prop("mlt_service", "avformat-novalidate"),
-				prop("kdenlive:id", strconv.Itoa(id)),
-				prop("kdenlive:folderid", leafID[i]),
-				prop("kdenlive:clip_type", "0"),
-			}
+		p := &Node{Name: "producer", Attrs: attrs("id", pid, "out", tc)}
+		p.Children = []*Node{
+			prop("resource", c.Resource),
+			prop("mlt_service", "avformat-novalidate"),
+			prop("kdenlive:id", strconv.Itoa(id)),
+			prop("kdenlive:folderid", leafID[i]),
+			prop("kdenlive:clip_type", "0"),
 		}
-		elems = append(elems, el)
-		entries = append(entries, &Node{Name: "entry", Attrs: attrs("in", "00:00:00.000", "out", tc, "producer", refID)})
+		// Pre-link studio's proxy so Kdenlive uses it directly instead of running
+		// its (unreliable) external-proxy match or regenerating one. resource
+		// stays the original; kdenlive:proxy overlays the project-relative low-res
+		// file, and kdenlive:originalurl records where the source lives — without
+		// it Kdenlive reports "missing source, proxy available". Both paths are
+		// project-relative, matching how Kdenlive serialises a proxied clip. Needs
+		// enableproxy=1 (set on main_bin below) to take effect.
+		if c.Proxy != "" {
+			p.Children = append(p.Children,
+				prop("kdenlive:proxy", c.Proxy),
+				prop("kdenlive:originalurl", c.Resource),
+			)
+		}
+		producers = append(producers, p)
+
+		e := &Node{Name: "entry", Attrs: attrs("in", "00:00:00.000", "out", tc, "producer", pid)}
+		entries = append(entries, e)
 	}
 
 	// Turn on both proxy toggles so the pre-linked overlays take effect when the
@@ -148,52 +149,9 @@ func Scaffold(root *Node, clips []ClipRef, projectDir string) error {
 	// so they sit with the other folder props, ahead of the entries). newFolders
 	// is freshly allocated, so a plain prepend can't alias the template's slice.
 	mainBin.Children = append(newFolders, mainBin.Children...)
-	insertBefore(root, mainBin, elems)
+	insertBefore(root, mainBin, producers)
 	mainBin.Children = append(mainBin.Children, entries...)
 	return nil
-}
-
-// proxiedChain builds the <chain> Kdenlive uses for a clip whose proxy is active:
-// its resource IS the proxy (so the monitor/timeline play the low-res file), with
-// the original preserved in kdenlive:originalurl and a kdenlive:original.*
-// snapshot so render swaps the full-res source back in. Mirrors what Kdenlive
-// writes when it links an external proxy on import. All media paths are
-// project-relative.
-func proxiedChain(refID string, id int, folderID, tc string, c ClipRef) *Node {
-	frames := int(c.DurationSec*c.FPS + 0.5)
-	if frames < 1 {
-		frames = 1
-	}
-	audioIdx := "-1"
-	if c.HasAudio {
-		audioIdx = "1"
-	}
-	ch := &Node{Name: "chain", Attrs: attrs("id", refID, "out", tc)}
-	ch.Children = []*Node{
-		prop("length", strconv.Itoa(frames)),
-		prop("eof", "pause"),
-		prop("resource", c.Proxy), // the proxy — this is what makes it active
-		prop("mlt_service", "avformat"),
-		prop("kdenlive:id", strconv.Itoa(id)),
-		prop("kdenlive:folderid", folderID),
-		prop("kdenlive:clip_type", "0"),
-		prop("kdenlive:proxy", c.Proxy),
-		prop("kdenlive:originalurl", c.Resource),
-		// Snapshot of the original producer, so Kdenlive can restore the full-res
-		// source (e.g. at render) without re-probing.
-		prop("kdenlive:original.mlt_type", "producer"),
-		prop("kdenlive:original.in", "0"),
-		prop("kdenlive:original.out", strconv.Itoa(frames-1)),
-		prop("kdenlive:original.length", strconv.Itoa(frames)),
-		prop("kdenlive:original.eof", "pause"),
-		prop("kdenlive:original.resource", c.Resource),
-		prop("kdenlive:original.mlt_service", "avformat"),
-		prop("kdenlive:original.audio_index", audioIdx),
-		prop("kdenlive:original.video_index", "0"),
-		prop("kdenlive:original.width", strconv.Itoa(c.Width)),
-		prop("kdenlive:original.height", strconv.Itoa(c.Height)),
-	}
-	return ch
 }
 
 func anyProxy(clips []ClipRef) bool {
