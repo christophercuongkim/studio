@@ -182,7 +182,11 @@ func proxiedChain(refID string, id int, folderID, tc string, c ClipRef) *Node {
 		prop("length", strconv.Itoa(frames)),
 		prop("eof", "pause"),
 		prop("resource", c.Proxy), // the proxy — this is what makes it active
-		prop("mlt_service", "avformat"),
+		// novalidate: trust the supplied length/out instead of opening every proxy
+		// on load, so a 100+ clip project opens fast (Kdenlive opens each file
+		// lazily when the clip is actually played). Activation comes from
+		// resource=proxy, not the probe.
+		prop("mlt_service", "avformat-novalidate"),
 		prop("kdenlive:id", strconv.Itoa(id)),
 		prop("kdenlive:folderid", folderID),
 		prop("kdenlive:clip_type", "0"),
