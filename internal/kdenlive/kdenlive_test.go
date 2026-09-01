@@ -103,36 +103,46 @@ func TestScaffoldRoutesByGroup(t *testing.T) {
 	}
 }
 
-// TestScaffoldPreLinksProxy checks the proxy overlay: a clip with a proxy gets
-// kdenlive:proxy + kdenlive:originalurl (resource stays the original), and the
-// project-level enableproxy toggle is flipped to 1. A clip without a proxy gets
-// neither.
+// TestScaffoldPreLinksProxy checks the active-proxy chain: a clip with a proxy
+// becomes a <chain> whose resource IS the proxy (so it plays low-res), with the
+// original preserved in kdenlive:originalurl + a kdenlive:original.resource
+// snapshot (so render restores full-res). A clip without a proxy stays a plain
+// <producer> pointing at the original.
 func TestScaffoldPreLinksProxy(t *testing.T) {
 	root := loadTemplate(t)
 	mainBin := root.Find("playlist", "id", "main_bin")
 
 	clips := []ClipRef{
-		{Resource: "/p/originals/a.MP4", Proxy: "proxy/a.mp4", DurationSec: 2}, // relative proxy
-		{Resource: "/p/originals/b.MP4", Proxy: "", DurationSec: 2},            // no proxy
+		{Resource: "originals/a.MP4", Proxy: "proxy/a.mp4", DurationSec: 2, FPS: 30, Width: 1920, Height: 1080, HasAudio: true},
+		{Resource: "originals/b.MP4", Proxy: "", DurationSec: 2}, // no proxy
 	}
 	if err := Scaffold(root, clips, "/proj"); err != nil {
 		t.Fatal(err)
 	}
 
-	a := findProducerByResource(root, "/p/originals/a.MP4")
+	// a is a proxy chain: resource = the proxy.
+	a := findByResource(root, "chain", "proxy/a.mp4")
+	if a == nil {
+		t.Fatal("proxy chain for a not found (resource should be the proxy)")
+	}
 	if got := propValue(a, "kdenlive:proxy"); got != "proxy/a.mp4" {
-		t.Errorf("a kdenlive:proxy = %q, want proxy/a.mp4 (project-relative)", got)
+		t.Errorf("a kdenlive:proxy = %q, want proxy/a.mp4", got)
 	}
-	if got := propValue(a, "resource"); got != "/p/originals/a.MP4" {
-		t.Errorf("a resource = %q, want the original (proxy is an overlay)", got)
+	if got := propValue(a, "kdenlive:originalurl"); got != "originals/a.MP4" {
+		t.Errorf("a kdenlive:originalurl = %q, want the original", got)
 	}
-	// A proxied clip needs originalurl so Kdenlive can locate the source; without
-	// it the clip loads as "missing source, proxy available".
-	if got := propValue(a, "kdenlive:originalurl"); got != "/p/originals/a.MP4" {
-		t.Errorf("a kdenlive:originalurl = %q, want the original path", got)
+	if got := propValue(a, "kdenlive:original.resource"); got != "originals/a.MP4" {
+		t.Errorf("a original snapshot resource = %q, want the original", got)
+	}
+	if got := propValue(a, "length"); got != "60" { // 2s * 30fps
+		t.Errorf("a length = %q, want 60 frames", got)
 	}
 
-	b := findProducerByResource(root, "/p/originals/b.MP4")
+	// b has no proxy: plain producer pointing at the original, no kdenlive:proxy.
+	b := findByResource(root, "producer", "originals/b.MP4")
+	if b == nil {
+		t.Fatal("producer for b not found")
+	}
 	if got := propValue(b, "kdenlive:proxy"); got != "" {
 		t.Errorf("b kdenlive:proxy = %q, want empty (no proxy)", got)
 	}
@@ -354,6 +364,19 @@ func countFolders(n *Node) int {
 		}
 	}
 	return c
+}
+
+// findByResource finds a node of the given tag whose resource property matches.
+func findByResource(n *Node, tag, resource string) *Node {
+	if n.Name == tag && propValue(n, "resource") == resource {
+		return n
+	}
+	for _, c := range n.Children {
+		if got := findByResource(c, tag, resource); got != nil {
+			return got
+		}
+	}
+	return nil
 }
 
 func findProducerByResource(n *Node, resource string) *Node {
