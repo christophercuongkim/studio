@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 // ClipRef is one clip to place in the project bin.
@@ -50,12 +52,19 @@ func Scaffold(root *Node, clips []ClipRef, projectDir string) error {
 		return fmt.Errorf("template has no <playlist id=\"main_bin\"> — not a Kdenlive project bin")
 	}
 
-	// Repoint the document root at the project: the template ships with its own
-	// authoring path (e.g. ~/Videos/Templates), against which our project-relative
-	// resource/proxy paths would resolve to nowhere. Kdenlive stores root as the
-	// project folder, so match that.
+	// Rewrite everything in the template that's tied to where the template was
+	// authored, so the scaffolded project stands on its own:
+	//   - root: the template's authoring path, against which our project-relative
+	//     resource/proxy paths would otherwise resolve to nowhere.
+	//   - documentid: Kdenlive's per-project id; the template's is shared by every
+	//     project made from it, so derive a unique one from the project path
+	//     (stable across regenerates of the same project).
+	//   - browserurl: the clip-browser's last folder, a stale authoring path.
 	if projectDir != "" {
 		root.SetAttr("root", projectDir)
+		setDocProperty(mainBin, "kdenlive:docproperties.documentid",
+			strconv.FormatUint(xxhash.Sum64String(projectDir), 10))
+		setDocProperty(mainBin, "kdenlive:docproperties.browserurl", projectDir)
 	}
 
 	// index keys a folder by parent-id + name → its own id, so a name can repeat

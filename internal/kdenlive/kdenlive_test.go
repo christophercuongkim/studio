@@ -165,6 +165,32 @@ func TestScaffoldPreLinksProxy(t *testing.T) {
 	if got, _ := root.Attr("root"); got != "/proj" {
 		t.Errorf("mlt root = %q, want /proj (the project dir)", got)
 	}
+	// Per-project rewrites of template authoring leftovers.
+	if got := propValue(mainBin, "kdenlive:docproperties.browserurl"); got != "/proj" {
+		t.Errorf("browserurl = %q, want the project dir", got)
+	}
+	if got := propValue(mainBin, "kdenlive:docproperties.documentid"); got == "" || got == "1783359227747" {
+		t.Errorf("documentid = %q, want a unique per-project id (not the template's)", got)
+	}
+}
+
+// TestScaffoldDocumentIDStableAndUnique: the id is derived from the project path,
+// so it's the same across regenerates of one project but differs between projects.
+func TestScaffoldDocumentIDStableAndUnique(t *testing.T) {
+	idFor := func(dir string) string {
+		root := loadTemplate(t)
+		if err := Scaffold(root, []ClipRef{{Resource: "originals/a.MP4"}}, dir); err != nil {
+			t.Fatal(err)
+		}
+		return propValue(root.Find("playlist", "id", "main_bin"), "kdenlive:docproperties.documentid")
+	}
+	a1, a2, b := idFor("/videos/trip-a"), idFor("/videos/trip-a"), idFor("/videos/trip-b")
+	if a1 != a2 {
+		t.Error("documentid should be stable for the same project path")
+	}
+	if a1 == b {
+		t.Error("documentid should differ between projects")
+	}
 }
 
 // TestScaffoldEnableProxyReplacesTemplateZero guards the update-in-place path: a
